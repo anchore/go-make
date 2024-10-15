@@ -1,0 +1,19 @@
+name: "Bootstrap"
+description: "Bootstrap all tools and dependencies"
+inputs:
+  cache-key-prefix:
+    description: "Prefix all cache keys with this value"
+    required: true
+    default: "831180ac25"
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-go@v5
+
+    - name: Restore tool cache
+      id: tool-cache
+      uses: actions/cache@v3
+      with:
+        path: ${{ github.workspace }}/.tmp
+        key: ${{ inputs.cache-key-prefix }}-${{ runner.os }}-tool }}

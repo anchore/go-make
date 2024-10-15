@@ -1,0 +1,28 @@
+name: "Validations"
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+
+  Static-Analysis:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/bootstrap
+
+      - run: make static-analysis
+
+  Unit-Test:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/bootstrap
+
+      - run: make test
