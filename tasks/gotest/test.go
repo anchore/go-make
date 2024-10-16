@@ -55,8 +55,11 @@ func WithVerbose() Option {
 	}
 }
 
-func Test(options ...Option) Task {
+func Test(name string, options ...Option) Task {
 	cfg := defaultConfig()
+	if name != "" {
+		cfg.Level = name
+	}
 	for _, opt := range options {
 		opt(&cfg)
 	}

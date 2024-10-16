@@ -2,9 +2,11 @@ package make
 
 import (
 	"crypto/md5" //nolint: gosec
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 var RootDir = func() string {
@@ -70,6 +72,12 @@ func FileExists(file string) bool {
 	return err == nil
 }
 
+func EnsureFileExists(file string) {
+	if !FileExists(file) {
+		Throw(fmt.Errorf("file does not exist: %s", file))
+	}
+}
+
 func FindFile(glob string) string {
 	dir := Get(os.Getwd())
 	return findFile(dir, glob)
@@ -85,6 +93,14 @@ func ReadFile(file string) string {
 	b, err := os.ReadFile(file)
 	NoErr(err)
 	return string(b)
+}
+
+func FileContains(file, substr string) bool {
+	return strings.Contains(ReadFile(file), substr)
+}
+
+func WriteFile(contents, path string) {
+	NoErr(os.WriteFile(path, []byte(contents), 0600))
 }
 
 func findFile(dir string, glob string) string {

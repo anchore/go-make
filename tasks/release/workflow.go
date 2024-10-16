@@ -4,10 +4,16 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	. "github.com/anchore/go-make" //nolint:stylecheck
+)
+
+const (
+	releaseWorkflowName = "release.yaml"
+	workflowsPath       = ".github/workflows"
 )
 
 func WorkflowTask() Task {
@@ -15,6 +21,8 @@ func WorkflowTask() Task {
 		Name: "release",
 		Desc: "trigger a release github actions workflow",
 		Run: func() {
+			EnsureFileExists(filepath.Join(workflowsPath, releaseWorkflowName))
+
 			Run("gh auth status")
 
 			// TODO: gh repo set-default OWNER/PROJECT
@@ -31,10 +39,10 @@ func WorkflowTask() Task {
 			// ensure we have up-to-date git tags
 			Run("git fetch --tags")
 
-			generateAndShow()
+			generateAndShowChangelog()
 
 			// read next version from VERSION file
-			version := ReadFile("VERSION")
+			version := ReadFile(versionFile)
 			nextVersion := strings.TrimSpace(version)
 
 			if nextVersion == "" || nextVersion == "(Unreleased)" {
@@ -62,13 +70,13 @@ func WorkflowTask() Task {
 
 			// trigger release
 			Log("Kicking off release for %s", nextVersion)
-			Run(fmt.Sprintf("gh workflow run release.yaml -f version=%s", nextVersion))
+			Run(fmt.Sprintf("gh workflow run %s -f version=%s", releaseWorkflowName, nextVersion))
 
 			Log("Waiting for release to start...")
 			time.Sleep(10 * time.Second)
 
 			var urlBuf bytes.Buffer
-			RunWithOptions("gh run list --workflow=release.yaml --limit=1 --json url --jq '.[].url'", ExecOut(&urlBuf))
+			RunWithOptions(fmt.Sprintf("gh run list --workflow=%s --limit=1 --json url --jq '.[].url'", releaseWorkflowName), ExecOut(&urlBuf))
 			Log(urlBuf.String())
 		},
 	}

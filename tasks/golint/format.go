@@ -16,7 +16,7 @@ import (
 //	}
 // s}
 
-func StaticAnalysis() Task {
+func StaticAnalysisTask() Task {
 	return Task{
 		Name: "static-analysis",
 		Desc: "run lint checks",

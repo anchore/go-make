@@ -11,8 +11,8 @@ func main() {
 		RollupTask("default", "run all validations", "static-analysis", "test"),
 		golint.FormatTask(),
 		golint.LintFixTask(),
-		golint.StaticAnalysis(),
-		gotest.Test(gotest.WithLevel("unit")),
+		golint.StaticAnalysisTask(),
+		gotest.Test("unit"),
 		RollupTask("test", "run all levels of test", "unit"),
 	)
 }
