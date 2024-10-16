@@ -9,10 +9,19 @@ import (
 )
 
 type Task struct {
-	Name string
-	Desc string
-	Deps []string
-	Run  func()
+	Name  string
+	Desc  string
+	Quiet bool
+	Deps  []string
+	Run   func()
+}
+
+func RollupTask(name string, desc string, deps ...string) Task {
+	return Task{
+		Name: name,
+		Desc: desc,
+		Deps: deps,
+	}
 }
 
 func Makefile(tasks ...Task) {
@@ -22,17 +31,24 @@ func Makefile(tasks ...Task) {
 	Cd(RootDir())
 
 	t := taskRunner{}
+	names := map[string]struct{}{}
 	for i := range tasks {
+		if _, ok := names[tasks[i].Name]; ok {
+			panic(fmt.Errorf("duplicate task name: %s", tasks[i].Name))
+		}
 		t.tasks = append(t.tasks, &tasks[i])
+		names[tasks[i].Name] = struct{}{}
 	}
 
 	t.tasks = append(t.tasks, &Task{
 		Name: "help",
+		Desc: "print this help message",
 		Run:  t.Help,
 	})
 
 	t.tasks = append(t.tasks, &Task{
 		Name: "makefile",
+		Desc: "generate an explicit Makefile for all tasks",
 		Run:  t.Makefile,
 	})
 
@@ -115,14 +131,17 @@ func (t *taskRunner) runTask(name string) {
 		t.runTask(dep)
 	}
 
-	if tsk.Run != nil {
+	if tsk.Run != nil && !tsk.Quiet {
 		Log(color.Green(color.Bold("-- %s --")), tsk.Name)
 	}
 
 	origLog := Log
 	defer func() { Log = origLog }()
 	Log = func(format string, args ...any) {
-		origLog(fmt.Sprintf(color.Green("[%s] "), tsk.Name)+format, args...)
+		if !tsk.Quiet {
+			format = fmt.Sprintf(color.Green("[%s] "), tsk.Name) + format
+		}
+		origLog(format, args...)
 	}
 
 	if tsk.Run != nil {

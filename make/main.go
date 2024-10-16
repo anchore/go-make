@@ -2,15 +2,17 @@ package main
 
 import (
 	. "github.com/anchore/go-make" //nolint:stylecheck
-	"github.com/anchore/go-make/tasks"
+	"github.com/anchore/go-make/tasks/golint"
+	"github.com/anchore/go-make/tasks/gotest"
 )
 
 func main() {
 	Makefile(
-		tasks.Format,
-		tasks.LintFix,
-		tasks.StaticAnalysis,
-		tasks.UnitTest,
-		tasks.TestAll,
+		RollupTask("default", "run all validations", "static-analysis", "test"),
+		golint.FormatTask(),
+		golint.LintFixTask(),
+		golint.StaticAnalysis(),
+		gotest.Test(gotest.WithLevel("unit")),
+		RollupTask("test", "run all levels of test", "unit"),
 	)
 }

@@ -23,6 +23,10 @@ var (
 	installed    = map[string]string{}
 )
 
+func IsBinnyManagedTool(cmd string) bool {
+	return binnyManaged[cmd] != ""
+}
+
 func binnyManagedToolPath(cmd string) string {
 	if strings.HasPrefix(cmd, Tpl(ToolDir)) {
 		return cmd
@@ -44,7 +48,7 @@ func binnyManagedToolPath(cmd string) string {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	cmdName := cmd
-	err := Exec(binnyPath, ExecArgs("install", "-v", cmdName), ExecEnv("BINNY_ROOT", Tpl(ToolDir)), ExecOut(&stdout, &stderr))
+	err := Exec(binnyPath, ExecArgs("install", "-q", cmdName), ExecEnv("BINNY_ROOT", Tpl(ToolDir)), ExecOut(&stdout, &stderr))
 	if err != nil {
 		Throw(fmt.Errorf("error executing: %s %s\nError: %w\nStdout: %v\nStderr: %v", binnyPath, cmdName, err, stdout.String(), stderr.String()))
 	}
@@ -126,6 +130,7 @@ func findBinnyVersion() string {
 	if ver != "" {
 		return ver
 	}
+	// TODO: pin to floating tag? (e.g. v0)
 	return "0.8.0"
 }
 

@@ -13,6 +13,7 @@ var (
 	Red   = makeColor(31)
 	Green = makeColor(32)
 	White = makeColor(37)
+	Grey  = makeColor(90)
 
 	BgRed   = makeColor(41)
 	BgGreen = makeColor(42)

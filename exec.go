@@ -7,25 +7,34 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+
+	"github.com/anchore/go-make/color"
 )
 
 // Run a command, logging with current stdout / stderr
 func Run(cmd ...string) {
-	cmd = append(ShellSplit(cmd[0]), cmd[1:]...)
-	for i := range cmd {
-		cmd[i] = Tpl(cmd[i])
-	}
+	cmd = parseCmd(cmd...)
 
 	NoErr(Exec(cmd[0], ExecArgs(cmd[1:]...), ExecStd()))
 }
 
+func RunWithOptions(cmd string, opts ...ExecOpt) {
+	cmds := parseCmd(cmd)
+
+	opts = append(opts, ExecArgs(cmds[1:]...))
+
+	if len(opts) == 0 {
+		opts = append(opts, ExecStd())
+	}
+
+	NoErr(Exec(cmds[0], opts...))
+}
+
 // RunE runs a command, returning stdout, stderr, err
 func RunE(cmd ...string) (string, string, error) {
-	cmd = append(ShellSplit(cmd[0]), cmd[1:]...)
-	for i := range cmd {
-		cmd[i] = Tpl(cmd[i])
-	}
+	cmd = parseCmd(cmd...)
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	err := Exec(cmd[0], ExecArgs(cmd[1:]...), func(cmd *exec.Cmd) {
@@ -33,6 +42,14 @@ func RunE(cmd ...string) (string, string, error) {
 		cmd.Stderr = &stderr
 	})
 	return stdout.String(), stderr.String(), err
+}
+
+func parseCmd(cmd ...string) []string {
+	cmd = append(ShellSplit(cmd[0]), cmd[1:]...)
+	for i := range cmd {
+		cmd[i] = Tpl(cmd[i])
+	}
+	return cmd
 }
 
 // Exec executes the given command, returning stdout and any error information
@@ -67,7 +84,7 @@ func Exec(cmd string, opts ...ExecOpt) error {
 	}
 
 	args := c.Args[1:] // exec.Command sets the cmd to Args[0]
-	Log("%v %v", cmd, strings.Join(args, " "))
+	Log("%v %v", displayPath(cmd), strings.Join(args, " "))
 
 	// execute
 	err := c.Start()
@@ -81,6 +98,29 @@ func Exec(cmd string, opts ...ExecOpt) error {
 		}
 	}
 	return nil
+}
+
+func displayPath(cmd string) string {
+	wd, err := os.Getwd()
+	if err != nil {
+		return auxParent(cmd)
+	}
+
+	absWd, err := filepath.Abs(wd)
+	if err != nil {
+		return auxParent(cmd)
+	}
+
+	relPath, err := filepath.Rel(absWd, cmd)
+	if err != nil {
+		return auxParent(cmd)
+	}
+	return auxParent(relPath)
+}
+
+func auxParent(path string) string {
+	dir, file := filepath.Split(path)
+	return color.Grey(dir) + file
 }
 
 // ExecArgs appends args to the command
@@ -109,6 +149,22 @@ func ExecOut(stdout io.Writer, stderr ...io.Writer) ExecOpt {
 		cmd.Stdout = stdout
 		cmd.Stderr = err
 		cmd.Stdin = os.Stdin
+	}
+}
+
+func ExecOutToFile(path string) ExecOpt {
+	fh, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	NoErr(err)
+	return func(cmd *exec.Cmd) {
+		cmd.Stdout = fh
+	}
+}
+
+func ExecErrToFile(path string) ExecOpt {
+	fh, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	NoErr(err)
+	return func(cmd *exec.Cmd) {
+		cmd.Stderr = fh
 	}
 }
 

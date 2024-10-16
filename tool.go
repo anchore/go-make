@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	ToolDir  = "{{RootDir}}/.tool/{{Platform}}"
+	ToolDir  = "{{RootDir}}/.tool"
 	Platform = "{{OS}}/{{Arch}}"
 	OS       = runtime.GOOS
 	Arch     = runtime.GOARCH

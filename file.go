@@ -1,8 +1,10 @@
 package make
 
 import (
+	"crypto/md5" //nolint: gosec
 	"os"
 	"path/filepath"
+	"sort"
 )
 
 var RootDir = func() string {
@@ -15,6 +17,17 @@ func Cd[path string](dir path) {
 
 func Cwd() string {
 	return Get(os.Getwd())
+}
+
+func PushPopd[path string](dir path, run func()) {
+	cwd := Cwd()
+	Log("pushd %s", dir)
+	Cd(dir)
+	defer func() {
+		Log("popd %s", cwd)
+		Cd(cwd)
+	}()
+	run()
 }
 
 func IsDir(dir string) bool {
@@ -33,6 +46,25 @@ func IsRegularFile(name string) bool {
 	return !s.IsDir() && s.Mode()&os.ModeSymlink == 0
 }
 
+func FingerprintFiles(files ...string) string {
+	sort.Strings(files)
+
+	hasher := md5.New() //nolint: gosec
+	for _, file := range files {
+		data := ReadFile(file)
+		hasher.Write([]byte(data))
+	}
+	return string(hasher.Sum(nil))
+}
+
+func FingerprintGlobs(globs ...string) string {
+	var files []string
+	for _, glob := range globs {
+		files = append(files, FindFiles(glob)...)
+	}
+	return FingerprintFiles(files...)
+}
+
 func FileExists(file string) bool {
 	_, err := os.Stat(file)
 	return err == nil
@@ -41,6 +73,18 @@ func FileExists(file string) bool {
 func FindFile(glob string) string {
 	dir := Get(os.Getwd())
 	return findFile(dir, glob)
+}
+
+func FindFiles(glob string) []string {
+	dir := Get(os.Getwd())
+	f := filepath.Join(dir, glob)
+	return Get(filepath.Glob(f))
+}
+
+func ReadFile(file string) string {
+	b, err := os.ReadFile(file)
+	NoErr(err)
+	return string(b)
 }
 
 func findFile(dir string, glob string) string {
