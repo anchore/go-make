@@ -3,17 +3,20 @@ package make
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/anchore/go-make/color"
 )
 
 type Task struct {
-	Name  string
-	Desc  string
-	Quiet bool
-	Deps  []string
-	Run   func()
+	Name   string
+	Desc   string
+	Quiet  bool
+	Deps   []string
+	Labels []string
+	Tasks  []Task
+	Run    func()
 }
 
 func RollupTask(name string, desc string, deps ...string) Task {
@@ -31,14 +34,8 @@ func Makefile(tasks ...Task) {
 	Cd(RootDir())
 
 	t := taskRunner{}
-	names := map[string]struct{}{}
-	for i := range tasks {
-		if _, ok := names[tasks[i].Name]; ok {
-			panic(fmt.Errorf("duplicate task name: %s", tasks[i].Name))
-		}
-		t.tasks = append(t.tasks, &tasks[i])
-		names[tasks[i].Name] = struct{}{}
-	}
+
+	t.addTasks(tasks...)
 
 	t.tasks = append(t.tasks, &Task{
 		Name: "help",
@@ -55,22 +52,21 @@ func Makefile(tasks ...Task) {
 	t.Run(os.Args[1:]...)
 }
 
+func (t *taskRunner) addTasks(tasks ...Task) {
+	for _, task := range tasks {
+		if len(t.findByName(task.Name)) > 0 {
+			panic(fmt.Errorf("duplicate task name: %s", task.Name))
+		}
+		if task.Name != "" {
+			t.tasks = append(t.tasks, &task)
+		}
+		t.addTasks(task.Tasks...)
+	}
+}
+
 type taskRunner struct {
 	tasks []*Task
 	run   map[string]struct{}
-}
-
-func (t *taskRunner) Help() {
-	fmt.Print("Tasks:", NewLine)
-	sz := 0
-	for _, t := range t.tasks {
-		if len(t.Name) > sz {
-			sz = len(t.Name)
-		}
-	}
-	for _, t := range t.tasks {
-		fmt.Printf("  * %s% *s - %s"+NewLine, t.Name, sz-len(t.Name), "", t.Desc)
-	}
 }
 
 var startWd = Cwd()
@@ -102,49 +98,60 @@ func (t *taskRunner) Run(args ...string) {
 	}
 }
 
-func (t *taskRunner) find(name string) *Task {
-	for _, task := range t.tasks {
-		if task.Name == name {
-			return task
+func (t *taskRunner) runTask(name string) {
+	// each task is going to set the log prefix
+	origLogPrefix := LogPrefix
+	defer func() { LogPrefix = origLogPrefix }()
+
+	tasks := t.find(name)
+	if len(tasks) == 0 {
+		panic(fmt.Errorf("no tasks named: %s", color.Bold(color.Underline(name))))
+	}
+
+	for _, tsk := range tasks {
+		if _, ok := t.run[name]; ok {
+			return
+		}
+		if t.run == nil {
+			t.run = map[string]struct{}{}
+		}
+		t.run[name] = struct{}{}
+		for _, dep := range tsk.Deps {
+			if len(t.find(dep)) == 0 {
+				panic(fmt.Errorf("no dependency named: %s specified for task: %s", dep, tsk.Name))
+			}
+			t.runTask(dep)
+		}
+
+		LogPrefix = fmt.Sprintf(color.Green("[%s] "), tsk.Name)
+
+		if tsk.Run != nil {
+			tsk.Run()
 		}
 	}
-	return nil
 }
 
-func (t *taskRunner) runTask(name string) {
-	tsk := t.find(name)
-	if tsk == nil {
-		panic(fmt.Errorf("no task named: %s", color.Bold(color.Underline(name))))
-	}
-	if _, ok := t.run[name]; ok {
-		return
-	}
-	if t.run == nil {
-		t.run = map[string]struct{}{}
-	}
-	t.run[name] = struct{}{}
-	for _, dep := range tsk.Deps {
-		d := t.find(dep)
-		if d == nil {
-			panic(fmt.Errorf("no dependency named: %s specified for task: %s", dep, tsk.Name))
+func (t *taskRunner) find(name string) []*Task {
+	// add directly named tasks first, labeled tasks second
+	return append(t.findByName(name), t.findByLabel(name)...)
+}
+
+func (t *taskRunner) findByName(name string) []*Task {
+	var out []*Task
+	for _, task := range t.tasks {
+		if task.Name == name {
+			out = append(out, task)
 		}
-		t.runTask(dep)
 	}
+	return AllNotNil(out...)
+}
 
-	if tsk.Run != nil && !tsk.Quiet {
-		Log(color.Green(color.Bold("-- %s --")), tsk.Name)
-	}
-
-	origLog := Log
-	defer func() { Log = origLog }()
-	Log = func(format string, args ...any) {
-		if !tsk.Quiet {
-			format = fmt.Sprintf(color.Green("[%s] "), tsk.Name) + format
+func (t *taskRunner) findByLabel(name string) []*Task {
+	var out []*Task
+	for _, task := range t.tasks {
+		if slices.Contains(task.Labels, name) {
+			out = append(out, task)
 		}
-		origLog(format, args...)
 	}
-
-	if tsk.Run != nil {
-		tsk.Run()
-	}
+	return AllNotNil(out...)
 }

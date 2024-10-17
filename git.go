@@ -23,3 +23,11 @@ func GitRevision() string {
 	}
 	return strings.TrimSpace(buf.String())
 }
+
+func InGitClone(repo, branch string, fn func()) {
+	InTempDir(func() {
+		Run("git clone --depth 1 --branch", branch, repo, "repo")
+		Cd("repo")
+		fn()
+	})
+}

@@ -8,11 +8,7 @@ import (
 
 func main() {
 	Makefile(
-		RollupTask("default", "run all validations", "static-analysis", "test"),
-		golint.FormatTask(),
-		golint.LintFixTask(),
-		golint.StaticAnalysisTask(),
+		golint.Tasks(),
 		gotest.Test("unit"),
-		RollupTask("test", "run all levels of test", "unit"),
 	)
 }

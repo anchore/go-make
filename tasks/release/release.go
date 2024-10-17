@@ -12,6 +12,17 @@ import (
 
 const configName = ".goreleaser.yaml"
 
+func Tasks() Task {
+	return Task{
+		Tasks: []Task{
+			ChangelogTask(),
+			SnapshotTask(),
+			CIReleaseTask(),
+			WorkflowTask(),
+		},
+	}
+}
+
 func CIReleaseTask() Task {
 	return Task{
 		Name: "ci-release",

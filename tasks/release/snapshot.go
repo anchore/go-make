@@ -1,4 +1,4 @@
-package gobuild
+package release
 
 import (
 	"fmt"
@@ -6,8 +6,6 @@ import (
 
 	. "github.com/anchore/go-make" //nolint:stylecheck
 )
-
-const configName = ".goreleaser.yaml"
 
 func SnapshotTask() Task {
 	return Task{
@@ -25,10 +23,21 @@ func SnapshotTask() Task {
 					configContent += "\ndist: snapshot\n"
 				}
 
-				WriteFile(configContent, dstConfig)
+				WriteFile(dstConfig, configContent)
 
 				Run(fmt.Sprintf(`goreleaser release --clean --snapshot --skip=publish --skip=sign --config=%s`, dstConfig))
 			})
+		},
+		Tasks: []Task{
+			{
+				Name:   "snapshot:clean",
+				Desc:   "clean all snapshots",
+				Labels: All("clean"),
+				Run: func() {
+					snapshotDir := PathJoin(RepoRoot(), "snapshot")
+					Run(`rm -rf`, snapshotDir)
+				},
+			},
 		},
 	}
 }

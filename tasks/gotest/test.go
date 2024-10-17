@@ -10,7 +10,6 @@ import (
 )
 
 type Config struct {
-	Level       string
 	IncludeGlob string
 	ExcludeGlob string
 	Verbose     bool
@@ -18,7 +17,6 @@ type Config struct {
 
 func defaultConfig() Config {
 	return Config{
-		Level:       "test",
 		IncludeGlob: "./...",
 	}
 }
@@ -28,12 +26,6 @@ type Option func(*Config)
 func With(cfg Config) Option {
 	return func(c *Config) {
 		*c = cfg
-	}
-}
-
-func WithLevel(name string) Option {
-	return func(c *Config) {
-		c.Level = name
 	}
 }
 
@@ -57,16 +49,14 @@ func WithVerbose() Option {
 
 func Test(name string, options ...Option) Task {
 	cfg := defaultConfig()
-	if name != "" {
-		cfg.Level = name
-	}
 	for _, opt := range options {
 		opt(&cfg)
 	}
 
 	return Task{
-		Name: cfg.Level,
-		Desc: fmt.Sprintf("run %s tests", cfg.Level),
+		Name:   name,
+		Desc:   fmt.Sprintf("run %s tests", name),
+		Labels: All("test"),
 		Run: func() {
 			var args []string
 			args = append(args, "go test")

@@ -6,10 +6,16 @@ import (
 	"golang.org/x/mod/modfile"
 )
 
-func GoDepVersion(module string) string {
+// ReadGoMod reads the first go.mod found
+func ReadGoMod() *modfile.File {
 	modFile := FindFile("go.mod")
 	contents := Get(os.ReadFile(modFile))
-	f := Get(modfile.Parse("go.mod", contents, nil))
+	return Get(modfile.Parse("go.mod", contents, nil))
+}
+
+// GoDepVersion returns the version found for the requested dependency in the first go.mod file found
+func GoDepVersion(module string) string {
+	f := ReadGoMod()
 	if f.Module != nil && f.Module.Mod.Path == module {
 		return GitRevision()
 	}

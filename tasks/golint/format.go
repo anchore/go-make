@@ -4,29 +4,52 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	. "github.com/anchore/go-make" //nolint:stylecheck
 )
 
-// func init() {
-//	Globals["app"] = "go-make"
-//	Globals["now"] = func() string {
-//		return fmt.Sprintf("%v", time.Now())
-//	}
-// s}
+func init() {
+	Globals["LocalPackage"] = "github.com/anchore"
+}
+
+func Tasks() Task {
+	return Task{
+		Tasks: []Task{
+			StaticAnalysisTask(),
+			FormatTask(),
+			LintFixTask(),
+		},
+	}
+}
 
 func StaticAnalysisTask() Task {
 	return Task{
-		Name: "static-analysis",
-		Desc: "run lint checks",
+		Name:   "static-analysis",
+		Desc:   "run lint checks",
+		Labels: All("default"),
 		Run: func() {
-			Run("go mod tidy -diff") // TODO: valid only >= go 1.23, should we support previous versions with custom go function?
+			if hasModTidyDiff() {
+				Run("go mod tidy -diff")
+			}
 			Run("golangci-lint run")
 			NoErr(findMalformedFilenames("."))
 			Run(`bouncer check ./...`)
 		},
 	}
+}
+
+func hasModTidyDiff() bool {
+	gm := ReadGoMod()
+	if gm.Go == nil {
+		return false
+	}
+	parts := strings.Split(gm.Go.Version, ".")
+	if len(parts) < 2 {
+		return false
+	}
+	return Get(strconv.Atoi(parts[1])) >= 23
 }
 
 func FormatTask() Task {
@@ -35,7 +58,7 @@ func FormatTask() Task {
 		Desc: "format all source files",
 		Run: func() {
 			Run(`gofmt -w -s .`)
-			Run(`gosimports -local github.com/anchore -w .`)
+			Run(`gosimports -local {{LocalPackage}} -w .`)
 			Run(`go mod tidy`)
 		},
 	}
