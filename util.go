@@ -3,11 +3,8 @@ package make
 import (
 	"fmt"
 	"io"
-	"iter"
-	"maps"
 	"os"
 	"reflect"
-	"slices"
 )
 
 var NewLine = fmt.Sprintln()
@@ -58,20 +55,21 @@ func remove[T comparable](values []T, toRemove T) []T {
 	return values
 }
 
-func sortedMapIter[K ~string, V any](values map[K]V) iter.Seq2[K, V] {
-	var keys []K
-	for k := range maps.Keys(values) {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-	return func(yield func(K, V) bool) {
-		for _, k := range keys {
-			if !yield(k, values[k]) {
-				return
-			}
-		}
-	}
-}
+// for go1.23+
+// func sortedMapIter[K ~string, V any](values map[K]V) iter.Seq2[K, V] {
+//	var keys []K
+//	for k := range maps.Keys(values) {
+//		keys = append(keys, k)
+//	}
+//	slices.Sort(keys)
+//	return func(yield func(K, V) bool) {
+//		for _, k := range keys {
+//			if !yield(k, values[k]) {
+//				return
+//			}
+//		}
+//	}
+//}
 
 func Close(closeable io.Closer) {
 	if closeable != nil {
