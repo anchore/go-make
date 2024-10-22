@@ -33,6 +33,7 @@ func StaticAnalysisTask() Task {
 			if hasModTidyDiff() {
 				Run("go mod tidy -diff")
 			}
+			Debug("CWD: %s", Cwd())
 			Run("golangci-lint run")
 			NoErr(findMalformedFilenames("."))
 			Run(`bouncer check ./...`)
@@ -42,7 +43,7 @@ func StaticAnalysisTask() Task {
 
 func hasModTidyDiff() bool {
 	gm := ReadGoMod()
-	if gm.Go == nil {
+	if gm == nil || gm.Go == nil {
 		return false
 	}
 	parts := strings.Split(gm.Go.Version, ".")

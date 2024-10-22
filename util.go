@@ -5,6 +5,9 @@ import (
 	"io"
 	"os"
 	"reflect"
+	"strings"
+
+	"github.com/anchore/go-make/color"
 )
 
 var NewLine = fmt.Sprintln()
@@ -13,6 +16,12 @@ var LogPrefix = ""
 
 var Log = func(format string, args ...any) {
 	_, _ = fmt.Fprintf(os.Stderr, LogPrefix+Tpl(format)+NewLine, args...)
+}
+
+var Debug = func(format string, args ...any) {}
+
+func DebugLog(format string, args ...any) {
+	_, _ = fmt.Fprintf(os.Stderr, LogPrefix+color.Grey(Tpl(format))+NewLine, args...)
 }
 
 func LogErr(err error) {
@@ -75,4 +84,16 @@ func Close(closeable io.Closer) {
 	if closeable != nil {
 		LogErr(closeable.Close())
 	}
+}
+
+func SplitFlat(commaSeparatedString string) []string {
+	return DelimiterSplitFlat(commaSeparatedString, ",")
+}
+
+func DelimiterSplitFlat(delimiterSeparatedString, delimiter string) []string {
+	var out []string
+	for _, s := range strings.Split(delimiterSeparatedString, delimiter) {
+		out = append(out, strings.TrimSpace(s))
+	}
+	return out
 }

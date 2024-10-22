@@ -10,9 +10,10 @@ import (
 )
 
 type Config struct {
-	IncludeGlob string
-	ExcludeGlob string
-	Verbose     bool
+	IncludeGlob  string
+	ExcludeGlob  string
+	Dependencies []string
+	Verbose      bool
 }
 
 func defaultConfig() Config {
@@ -26,6 +27,12 @@ type Option func(*Config)
 func With(cfg Config) Option {
 	return func(c *Config) {
 		*c = cfg
+	}
+}
+
+func WithDependencies(dependencies ...string) Option {
+	return func(c *Config) {
+		c.Dependencies = dependencies
 	}
 }
 
@@ -56,6 +63,7 @@ func Test(name string, options ...Option) Task {
 	return Task{
 		Name:   name,
 		Desc:   fmt.Sprintf("run %s tests", name),
+		Deps:   cfg.Dependencies,
 		Labels: All("test"),
 		Run: func() {
 			var args []string

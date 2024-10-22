@@ -86,6 +86,9 @@ func Exec(cmd string, opts ...ExecOpt) error {
 	args := c.Args[1:] // exec.Command sets the cmd to Args[0]
 	Log("%v %v", displayPath(cmd), strings.Join(args, " "))
 
+	// print out c.Env -- GOROOT  vs GOBIN
+	Debug("ENV: %v", c.Env)
+
 	// execute
 	err := c.Start()
 	if err == nil {

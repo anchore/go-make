@@ -43,13 +43,21 @@ func Makefile(tasks ...Task) {
 		Run:  t.Help,
 	})
 
-	t.tasks = append(t.tasks, &Task{
-		Name: "makefile",
-		Desc: "generate an explicit Makefile for all tasks",
-		Run:  t.Makefile,
-	})
+	// t.tasks = append(t.tasks, &Task{
+	//	Name: "makefile",
+	//	Desc: "generate an explicit Makefile for all tasks",
+	//	Run:  t.Makefile,
+	//})
+
+	readEnvironmentVars()
 
 	t.Run(os.Args[1:]...)
+}
+
+func readEnvironmentVars() {
+	if strings.EqualFold("true", os.Getenv("CAKE_VERBOSE")) {
+		Debug = DebugLog
+	}
 }
 
 func (t *taskRunner) addTasks(tasks ...Task) {
@@ -108,14 +116,16 @@ func (t *taskRunner) runTask(name string) {
 		panic(fmt.Errorf("no tasks named: %s", color.Bold(color.Underline(name))))
 	}
 
+	if t.run == nil {
+		t.run = map[string]struct{}{}
+	}
+
 	for _, tsk := range tasks {
-		if _, ok := t.run[name]; ok {
-			return
+		// don't re-run the same task
+		if _, ok := t.run[tsk.Name]; ok {
+			continue
 		}
-		if t.run == nil {
-			t.run = map[string]struct{}{}
-		}
-		t.run[name] = struct{}{}
+		t.run[tsk.Name] = struct{}{}
 		for _, dep := range tsk.Deps {
 			if len(t.find(dep)) == 0 {
 				panic(fmt.Errorf("no dependency named: %s specified for task: %s", dep, tsk.Name))
