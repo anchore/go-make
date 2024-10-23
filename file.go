@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/anchore/go-make/color"
 )
 
 // RootDir is a function to return the root directory which builds run from
@@ -25,6 +27,19 @@ func Cd(dir string) {
 // Cwd returns the current working directory
 func Cwd() string {
 	return Get(os.Getwd())
+}
+
+// Rmdir removes the given directory, first verifying it is a subdirectory of RootDir
+func Rmdir(dir string) {
+	dirToRm := Get(filepath.Abs(dir))
+	rootDir := Get(filepath.Abs(RootDir()))
+
+	if strings.HasPrefix(dirToRm, rootDir) {
+		Log(color.Red(`go: rm -rf %v`), dirToRm)
+		NoErr(os.RemoveAll(dirToRm))
+	} else {
+		Throw(fmt.Errorf("directory '%s' not in RootDir: '%s'", dirToRm, rootDir))
+	}
 }
 
 // InDir executes the given function in the provided directory, returning to the current working directory upon completion

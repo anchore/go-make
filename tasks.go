@@ -43,11 +43,21 @@ func Makefile(tasks ...Task) {
 		Run:  t.Help,
 	})
 
+	t.tasks = append(t.tasks, &Task{
+		Name:   "binny:clean",
+		Desc:   "clean binny cache",
+		Labels: All("clean"),
+		Quiet:  true,
+		Run: func() {
+			Rmdir(".tool")
+		},
+	})
+
 	// t.tasks = append(t.tasks, &Task{
 	//	Name: "makefile",
 	//	Desc: "generate an explicit Makefile for all tasks",
 	//	Run:  t.Makefile,
-	//})
+	// })
 
 	readEnvironmentVars()
 
