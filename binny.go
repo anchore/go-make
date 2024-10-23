@@ -40,6 +40,13 @@ func binnyManagedToolPath(cmd string) string {
 		return cmd
 	}
 
+	fullPath := BinnyInstall(cmd)
+	installed[cmd] = fullPath
+	return fullPath
+}
+
+// BinnyInstall installs the named executable and returns an absolute path to it
+func BinnyInstall(cmd string) string {
 	binnyPath := ToolPath("binny")
 	if !FileExists(binnyPath) {
 		installBinny(binnyPath)
@@ -47,18 +54,15 @@ func binnyManagedToolPath(cmd string) string {
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	cmdName := cmd
-	err := Exec(binnyPath, ExecArgs("install", "-q", cmdName), ExecEnv("BINNY_ROOT", Tpl(ToolDir)), ExecOut(&stdout, &stderr))
+
+	toolDir := Get(filepath.Abs(Tpl(ToolDir)))
+
+	err := Exec(binnyPath, ExecArgs("install", "-q", cmd), ExecEnv("BINNY_ROOT", toolDir), ExecOut(&stdout, &stderr))
 	if err != nil {
-		Throw(fmt.Errorf("error executing: %s %s\nError: %w\nStdout: %v\nStderr: %v", binnyPath, cmdName, err, stdout.String(), stderr.String()))
-	}
-	cmdName, err = filepath.Abs(filepath.Join(Tpl(ToolDir), cmdName))
-	if err != nil {
-		Throw(err)
+		Throw(fmt.Errorf("error executing: %s %s\nError: %w\nStdout: %v\nStderr: %v", binnyPath, cmd, err, stdout.String(), stderr.String()))
 	}
 
-	installed[cmd] = cmdName
-	return cmdName
+	return filepath.Join(toolDir, cmd)
 }
 
 func installBinny(binnyPath string) {

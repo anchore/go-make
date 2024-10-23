@@ -11,6 +11,7 @@ func SnapshotTask() Task {
 	return Task{
 		Name: "snapshot",
 		Desc: "build a snapshot release with goreleaser",
+		Deps: All("dependencies:quill", "dependencies:syft"),
 		Run: func() {
 			EnsureFileExists(configName)
 
@@ -34,8 +35,7 @@ func SnapshotTask() Task {
 				Desc:   "clean all snapshots",
 				Labels: All("clean"),
 				Run: func() {
-					snapshotDir := PathJoin(RepoRoot(), "snapshot")
-					Run(`rm -rf`, snapshotDir)
+					Rmdir("snapshot")
 				},
 			},
 		},

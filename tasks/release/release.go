@@ -27,6 +27,7 @@ func CIReleaseTask() Task {
 	return Task{
 		Name: "ci-release",
 		Desc: "build and publish a release with goreleaser",
+		Deps: All("dependencies:quill", "dependencies:syft"),
 		Run: func() {
 			EnsureFileExists(configName)
 
@@ -36,6 +37,7 @@ func CIReleaseTask() Task {
 
 			Run(fmt.Sprintf(`goreleaser release --clean --snapshot --releasenotes %s`, changelogFile))
 		},
+		Tasks: []Task{quillInstallTask(), syftInstallTask()},
 	}
 }
 
@@ -58,5 +60,29 @@ func ensureHeadHasTag() {
 func failIfNotInCI() {
 	if os.Getenv("CI") == "" {
 		Throw(errors.New("this task can only be run in CI"))
+	}
+}
+
+func quillInstallTask() Task {
+	return Task{
+		Name:  "dependencies:quill",
+		Quiet: true,
+		Run: func() {
+			if IsBinnyManagedTool("quill") {
+				_ = BinnyInstall("quill")
+			}
+		},
+	}
+}
+
+func syftInstallTask() Task {
+	return Task{
+		Name:  "dependencies:syft",
+		Quiet: true,
+		Run: func() {
+			if IsBinnyManagedTool("syft") {
+				_ = BinnyInstall("syft")
+			}
+		},
 	}
 }
