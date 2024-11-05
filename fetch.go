@@ -1,4 +1,4 @@
-package make
+package gomake
 
 import (
 	"io"
