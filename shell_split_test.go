@@ -1,4 +1,4 @@
-package make_test
+package gomake_test
 
 import (
 	"testing"
