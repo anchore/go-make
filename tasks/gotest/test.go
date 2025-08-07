@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/bmatcuk/doublestar/v4"
 
@@ -24,6 +25,7 @@ func Tasks(options ...Option) Task {
 		Dependencies: cfg.Dependencies,
 		RunsOn:       List("test"),
 		Run: func() {
+			start := time.Now()
 			args := List("test")
 			if cfg.Verbose {
 				args = append(args, "-v")
@@ -31,6 +33,8 @@ func Tasks(options ...Option) Task {
 			args = append(args, selectPackages(cfg.IncludeGlob, cfg.ExcludeGlob)...)
 
 			Run("go", run.Args(args...))
+
+			Log("Done running %s tests in %v", cfg.Name, time.Since(start))
 		},
 	}
 }
