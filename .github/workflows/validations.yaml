@@ -8,7 +8,16 @@ on:
       - main
 
 jobs:
-  Validations:
+  Static-Analysis:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/bootstrap
+
+      - run: make static-analysis
+
+  Tests:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -16,13 +25,10 @@ jobs:
           - ubuntu-24.04
           - windows-2022
           - macos-14
-        check:
-          - static-analysis
-          - test
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: ./.github/actions/bootstrap
 
-      - run: make ${{ matrix.check }}
+      - run: make test
