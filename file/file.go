@@ -3,6 +3,7 @@ package file
 import (
 	"crypto/md5" //nolint: gosec
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -103,8 +104,10 @@ func Fingerprint(globs ...string) string {
 
 	hasher := md5.New() //nolint: gosec
 	for _, file := range files {
-		data := Read(file)
-		hasher.Write([]byte(data))
+		if IsDir(file) {
+			continue
+		}
+		_ = lang.Return(io.Copy(hasher, lang.Return(os.Open(file))))
 	}
 	return fmt.Sprintf("%x", hasher.Sum(nil))
 }
