@@ -105,8 +105,10 @@ func Fingerprint(globs ...string) string {
 	hasher := md5.New() //nolint: gosec
 	for _, file := range files {
 		if IsDir(file) {
+			log.Debug("fingerprinting: %s", file)
 			continue
 		}
+		log.Debug("fingerprinting: %s", file)
 		_ = lang.Return(io.Copy(hasher, lang.Return(os.Open(file))))
 	}
 	return fmt.Sprintf("%x", hasher.Sum(nil))

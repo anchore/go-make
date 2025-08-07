@@ -42,7 +42,7 @@ func FixtureTasks() script.Task {
 				},
 			},
 			{
-				Name:        "fixtures-fingerprint",
+				Name:        "fixtures:fingerprint",
 				Description: "get test fixtures cache fingerprint",
 				Run: func() {
 					// should this be "**/test-fixtures/Makefile" ?
