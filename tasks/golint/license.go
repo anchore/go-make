@@ -1,13 +1,15 @@
 package golint
 
-import . "github.com/anchore/go-make" //nolint:stylecheck
+import (
+	"github.com/anchore/go-make/script"
+)
 
-func CheckLicensesTask() Task {
-	return Task{
-		Name: "check-licenses",
-		Desc: "ensure dependencies have allowable licenses",
+func CheckLicensesTask() script.Task {
+	return script.Task{
+		Name:        "check-licenses",
+		Description: "ensure dependencies have allowable licenses",
 		Run: func() {
-			Run(`bouncer check ./...`)
+			script.Run(`bouncer check ./...`)
 		},
 	}
 }

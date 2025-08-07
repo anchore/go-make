@@ -4,38 +4,39 @@ import (
 	"fmt"
 	"path/filepath"
 
-	. "github.com/anchore/go-make" //nolint:stylecheck
+	. "github.com/anchore/go-make"
+	"github.com/anchore/go-make/file"
+	"github.com/anchore/go-make/lang"
 )
 
-func SnapshotTask() Task {
+func SnapshotTasks() Task {
 	return Task{
-		Name: "snapshot",
-		Desc: "build a snapshot release with goreleaser",
-		Deps: All("dependencies:quill", "dependencies:syft"),
+		Name:        "snapshot",
+		Description: "build a snapshot release with goreleaser",
 		Run: func() {
-			EnsureFileExists(configName)
+			file.Require(configName)
 
-			WithTempDir(func(tempDir string) {
+			file.WithTempDir(func(tempDir string) {
 				dstConfig := filepath.Join(tempDir, configName)
 
-				configContent := ReadFile(configName)
+				configContent := file.Read(configName)
 
-				if !FileContains(configName, "dist:") {
+				if !file.Contains(configName, "dist:") {
 					configContent += "\ndist: snapshot\n"
 				}
 
-				WriteFile(dstConfig, configContent)
+				file.Write(dstConfig, configContent)
 
 				Run(fmt.Sprintf(`goreleaser release --clean --snapshot --skip=publish --skip=sign --config=%s`, dstConfig))
 			})
 		},
 		Tasks: []Task{
 			{
-				Name:   "snapshot:clean",
-				Desc:   "clean all snapshots",
-				Labels: All("clean"),
+				Name:        "snapshots:clean",
+				Description: "clean all snapshots",
+				RunsOn:      lang.List("clean"),
 				Run: func() {
-					Rmdir("snapshot")
+					file.Delete("snapshot")
 				},
 			},
 		},

@@ -1,10 +1,11 @@
-package gomake
+package binny
 
 import (
 	"archive/tar"
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -15,7 +16,17 @@ import (
 	"runtime"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
+
+	"github.com/anchore/go-make/config"
+	"github.com/anchore/go-make/fetch"
+	"github.com/anchore/go-make/file"
+	"github.com/anchore/go-make/git"
+	"github.com/anchore/go-make/gomod"
+	"github.com/anchore/go-make/lang"
+	"github.com/anchore/go-make/log"
+	"github.com/anchore/go-make/run"
+	"github.com/anchore/go-make/template"
 )
 
 var (
@@ -23,12 +34,14 @@ var (
 	installed    = map[string]string{}
 )
 
-func IsBinnyManagedTool(cmd string) bool {
+func IsManagedTool(cmd string) bool {
 	return binnyManaged[cmd] != ""
 }
 
-func binnyManagedToolPath(cmd string) string {
-	if strings.HasPrefix(cmd, Tpl(ToolDir)) {
+// ManagedToolPath returns the full path to a binny managed tool, installing or updating it before returning
+// or returning empty string "" for non-managed tools
+func ManagedToolPath(cmd string) string {
+	if strings.HasPrefix(cmd, template.Render(config.ToolDir)) {
 		return cmd
 	}
 
@@ -36,30 +49,42 @@ func binnyManagedToolPath(cmd string) string {
 		return out
 	}
 
-	if binnyManaged[cmd] == "" {
-		return cmd
+	if !IsManagedTool(cmd) {
+		return ""
 	}
 
-	fullPath := BinnyInstall(cmd)
+	fullPath := Install(cmd)
 	installed[cmd] = fullPath
 	return fullPath
 }
 
-// BinnyInstall installs the named executable and returns an absolute path to it
-func BinnyInstall(cmd string) string {
+// Install installs the named executable and returns an absolute path to it
+func Install(cmd string) string {
 	binnyPath := ToolPath("binny")
-	if !FileExists(binnyPath) {
+	if !file.Exists(binnyPath) {
 		installBinny(binnyPath)
+		if IsManagedTool("binny") {
+			Install("binny") // this will cause binny to update .tool/.binny.state.json with itself as installed
+		}
+	} else if cmd != "binny" && IsManagedTool("binny") {
+		// if binny itself is managed, install it to update itself
+		// using ManagedToolPath will only execute binny managing its own install once, in case it needs to update
+		ManagedToolPath("binny")
 	}
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
+	toolDir := lang.Return(filepath.Abs(template.Render(config.ToolDir)))
 
-	toolDir := Get(filepath.Abs(Tpl(ToolDir)))
+	out := bytes.Buffer{}
+	run.Command(binnyPath, run.Args("install", cmd),
+		run.Env("BINNY_LOG_LEVEL", "info"),
+		run.Env("BINNY_ROOT", toolDir),
+		run.Stdout(&out),
+		run.Stderr(&out),
+		run.Quiet(),
+	)
 
-	err := Exec(binnyPath, ExecArgs("install", "-q", cmd), ExecEnv("BINNY_ROOT", toolDir), ExecOut(&stdout, &stderr))
-	if err != nil {
-		Throw(fmt.Errorf("error executing: %s %s\nError: %w\nStdout: %v\nStderr: %v", binnyPath, cmd, err, stdout.String(), stderr.String()))
+	if !strings.Contains(out.String(), "already installed") {
+		log.Log("Binny installed: %v", cmd)
 	}
 
 	return filepath.Join(toolDir, cmd)
@@ -84,24 +109,24 @@ func installBinny(binnyPath string) {
 	})
 
 	if err != nil {
-		LogErr(err)
+		log.Error(err)
 
 		BuildFromGoSource(
 			binnyPath,
 			"github.com/anchore/binny",
 			"cmd/binny",
 			version,
-			Ldflags("-w",
+			LDFlags("-w",
 				"-s",
 				"-extldflags '-static'",
-				"-X main.version="+GoDepVersion("github.com/anchore/binny")))
+				"-X main.version="+gomod.GoDepVersion("github.com/anchore/binny")))
 	}
 }
 
 //nolint:gocognit
 func readBinnyYamlVersions() map[string]string {
 	out := map[string]string{}
-	binnyConfig := findFile(RepoRoot(), ".binny.yaml")
+	binnyConfig := file.FindParent(git.Root(), ".binny.yaml")
 	if binnyConfig != "" {
 		cfg := map[string]any{}
 		f, err := os.Open(binnyConfig)
@@ -135,7 +160,7 @@ func findBinnyVersion() string {
 		return ver
 	}
 	// TODO: pin to floating tag? (e.g. v0)
-	return "0.8.0"
+	return "0.9.0"
 }
 
 func toString(v any) string {
@@ -145,8 +170,13 @@ func toString(v any) string {
 
 func downloadPrebuiltBinary(toolPath string, spec downloadSpec) error {
 	tplArgs := spec.currentArgs()
-	url := Tpl(spec.url, tplArgs)
-	contents, code, status := Fetch(url)
+	url := template.Render(spec.url, tplArgs)
+
+	log.Log("Downloading: %v", url)
+
+	buf := bytes.Buffer{}
+	_, code, status := fetch.Fetch(url, fetch.Writer(&buf))
+	contents := buf.Bytes()
 	if code > 300 || len(contents) == 0 {
 		return fmt.Errorf("error downloading %v: http %v %v", url, code, status)
 	}
@@ -155,10 +185,10 @@ func downloadPrebuiltBinary(toolPath string, spec downloadSpec) error {
 		return fmt.Errorf("unable to read archive from downloading %v: http %v %v", url, code, status)
 	}
 	dir := filepath.Dir(toolPath)
-	if !FileExists(dir) {
-		NoErr(os.MkdirAll(dir, 0700|os.ModeDir))
+	if !file.Exists(dir) {
+		lang.Throw(os.MkdirAll(dir, 0o700|os.ModeDir))
 	}
-	return os.WriteFile(toolPath, contents, 0500) //nolint:gosec // read + execute permissions
+	return os.WriteFile(toolPath, contents, 0o500) //nolint:gosec // needs read + execute permissions
 }
 
 func getArchiveFileContents(archive []byte, file string) []byte {
@@ -176,8 +206,7 @@ func getArchiveFileContents(archive []byte, file string) []byte {
 	}
 	errs = append(errs, err)
 
-	Throw(fmt.Errorf("unable to read archive after attempting readers: %w", errors.Join(errs...)))
-	return nil
+	panic(fmt.Errorf("unable to read archive after attempting readers: %w", errors.Join(errs...)))
 }
 
 func getZipArchiveFileContents(archive []byte, file string) ([]byte, error) {
@@ -217,8 +246,8 @@ func getTarGzArchiveFileContents(archive []byte, file string) ([]byte, error) {
 	return nil, fmt.Errorf("file not found: %v", file)
 }
 
-func Ldflags(flags ...string) ExecOpt {
-	return func(cmd *exec.Cmd) {
+func LDFlags(flags ...string) run.Option {
+	return func(_ context.Context, cmd *exec.Cmd) error {
 		for i, arg := range cmd.Args {
 			// append to existing ldflags arg
 			if arg == "-ldflags" {
@@ -228,17 +257,18 @@ func Ldflags(flags ...string) ExecOpt {
 					cmd.Args[i+1] += " "
 				}
 				cmd.Args[i+1] += strings.Join(flags, " ")
-				return
+				return nil
 			}
 		}
 		cmd.Args = append(cmd.Args, "-ldflags", strings.Join(flags, " "))
+		return nil
 	}
 }
 
-func BuildFromGoSource(file string, module, entrypoint, version string, opts ...ExecOpt) {
-	Log("Building: %s", module)
-	InGitClone("https://"+module, version, func() {
-		NoErr(Exec("go", ExecArgs("build"), ExecOpts(opts...), ExecArgs("-o", file, "./"+entrypoint), ExecStd()))
+func BuildFromGoSource(file string, module, entrypoint, version string, opts ...run.Option) {
+	log.Log("Building: %s", module)
+	git.InClone("https://"+module, version, func() {
+		run.Command("go build", append(opts, run.Args("-o", file, "./"+entrypoint))...)
 	})
 }
 

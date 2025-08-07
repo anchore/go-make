@@ -21,20 +21,27 @@ var (
 	Reset = "\033[0m"
 )
 
-type colorFunc func(string) string
+// colorFunc automatically switch to format if args provided, directly output string otherwise
+type colorFunc func(s string, args ...any) string
 
 func (c colorFunc) And(color colorFunc) colorFunc {
-	return func(s string) string {
-		return c(color(s))
+	return func(s string, args ...any) string {
+		return c(color(s), args...)
 	}
 }
 
 func makeColor(c int) colorFunc {
+	render := func(s string, args ...any) string {
+		if len(args) > 0 {
+			return fmt.Sprintf(s, args...)
+		}
+		return s
+	}
 	if os.Getenv("NO_COLOR") != "" || os.Getenv("NOCOLOR") != "" {
-		return func(s string) string { return s }
+		return render
 	}
 	prefix := fmt.Sprintf("\033[%vm", c)
-	return func(s string) string {
-		return prefix + s + Reset
+	return func(s string, args ...any) string {
+		return prefix + render(s, args...) + Reset
 	}
 }
