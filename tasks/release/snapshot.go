@@ -11,8 +11,9 @@ import (
 
 func SnapshotTasks() Task {
 	return Task{
-		Name:        "snapshot",
-		Description: "build a snapshot release with goreleaser",
+		Name:         "snapshot",
+		Description:  "build a snapshot release with goreleaser",
+		Dependencies: List("release:dependencies"),
 		Run: func() {
 			file.Require(configName)
 

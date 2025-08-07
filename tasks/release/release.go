@@ -9,7 +9,6 @@ import (
 	. "github.com/anchore/go-make"
 	"github.com/anchore/go-make/binny"
 	"github.com/anchore/go-make/file"
-	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
 )
 
@@ -28,8 +27,9 @@ func Tasks() Task {
 
 func CIReleaseTask() Task {
 	return Task{
-		Name:        "ci-release",
-		Description: "build and publish a release with goreleaser",
+		Name:         "ci-release",
+		Description:  "build and publish a release with goreleaser",
+		Dependencies: List("release:dependencies"),
 		Run: func() {
 			file.Require(configName)
 
@@ -39,7 +39,11 @@ func CIReleaseTask() Task {
 
 			Run(fmt.Sprintf(`goreleaser release --clean --snapshot --releasenotes %s`, changelogFile))
 		},
-		Tasks: []Task{quillInstallTask(), syftInstallTask()},
+		Tasks: []Task{quillInstallTask(), syftInstallTask(), {
+			Name:         "release:dependencies",
+			Description:  "ensure all release dependencies are installed",
+			Dependencies: List("dependencies:quill", "dependencies:syft"),
+		}},
 	}
 }
 
@@ -64,8 +68,7 @@ func failIfNotInCI() {
 
 func quillInstallTask() Task {
 	return Task{
-		Name:   "dependencies:quill",
-		RunsOn: lang.List("ci-release"),
+		Name: "dependencies:quill",
 		Run: func() {
 			if binny.IsManagedTool("quill") {
 				binny.Install("quill")
@@ -76,8 +79,7 @@ func quillInstallTask() Task {
 
 func syftInstallTask() Task {
 	return Task{
-		Name:   "dependencies:syft",
-		RunsOn: lang.List("ci-release"),
+		Name: "dependencies:syft",
 		Run: func() {
 			if binny.IsManagedTool("syft") {
 				binny.Install("syft")
