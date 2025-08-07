@@ -1,6 +1,7 @@
 package gotest
 
 import (
+	"os"
 	"path/filepath"
 
 	"github.com/anchore/go-make/file"
@@ -45,7 +46,7 @@ func FixtureTasks() script.Task {
 				Description: "get test fixtures cache fingerprint",
 				Run: func() {
 					// should this be "**/test-fixtures/Makefile" ?
-					log.Log(file.Fingerprint("**/test-fixtures/*")) // TODO os.Stdout ?
+					lang.Return(os.Stdout.WriteString(file.Fingerprint("**/test-fixtures/*")))
 				},
 			},
 		},
