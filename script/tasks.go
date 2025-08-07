@@ -9,7 +9,7 @@ import (
 	"github.com/anchore/go-make/color"
 	"github.com/anchore/go-make/config"
 	"github.com/anchore/go-make/file"
-	. "github.com/anchore/go-make/lang"
+	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
 	"github.com/anchore/go-make/template"
 )
@@ -51,7 +51,7 @@ func (t Task) RunOn(tasks ...string) Task {
 // Makefile will execute the provided tasks much like make with dependencies,
 // as per the Task behavior declared above
 func Makefile(tasks ...Task) {
-	defer HandleErrors()
+	defer lang.HandleErrors()
 
 	file.Cd(template.Render(config.RootDir))
 
@@ -75,7 +75,7 @@ func Makefile(tasks ...Task) {
 		},
 		&Task{
 			Name:   "binny:clean",
-			RunsOn: List("clean"),
+			RunsOn: lang.List("clean"),
 			Run: func() {
 				file.Delete(".tool")
 			},
@@ -120,7 +120,7 @@ func (t *taskRunner) runTask(name string) {
 	origLogPrefix := log.Prefix
 	defer func() { log.Prefix = origLogPrefix }()
 
-	tasks := t.find(name)
+	tasks := t.findByName(name)
 	if len(tasks) == 0 {
 		panic(fmt.Errorf("no tasks named: %s", color.Bold(color.Underline(name))))
 	}
@@ -135,10 +135,10 @@ func (t *taskRunner) runTask(name string) {
 			continue
 		}
 		t.run[tsk.Name] = struct{}{}
+		for _, dep := range t.findByLabel(tsk.Name) {
+			t.runTask(dep.Name)
+		}
 		for _, dep := range tsk.Dependencies {
-			if len(t.find(dep)) == 0 {
-				panic(fmt.Errorf("no dependency named: %s specified for task: %s", dep, tsk.Name))
-			}
 			t.runTask(dep)
 		}
 
@@ -150,11 +150,6 @@ func (t *taskRunner) runTask(name string) {
 	}
 }
 
-func (t *taskRunner) find(name string) []*Task {
-	// add labeled tasks first, directly named tasks second so labels allow
-	return append(t.findByLabel(name), t.findByName(name)...)
-}
-
 func (t *taskRunner) findByName(name string) []*Task {
 	var out []*Task
 	for _, task := range t.tasks {
@@ -162,7 +157,7 @@ func (t *taskRunner) findByName(name string) []*Task {
 			out = append(out, task)
 		}
 	}
-	return List(out...)
+	return out
 }
 
 func (t *taskRunner) findByLabel(name string) []*Task {
@@ -172,7 +167,7 @@ func (t *taskRunner) findByLabel(name string) []*Task {
 			out = append(out, task)
 		}
 	}
-	return List(out...)
+	return out
 }
 
 func (t *taskRunner) Makefile() {
