@@ -10,6 +10,8 @@ runs:
   using: "composite"
   steps:
     - uses: actions/setup-go@v5
+      with:
+        go-version-file: ${{ github.workspace }}/go.mod
 
     - name: Restore tool cache
       id: tool-cache
