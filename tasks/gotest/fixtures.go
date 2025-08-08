@@ -16,7 +16,7 @@ func FixtureTasks() script.Task {
 		Description: "build test fixtures",
 		RunsOn:      lang.List("unit"),
 		Run: func() {
-			for _, f := range file.FindAll(filepath.Join(script.RepoRoot(), "**", "test-fixtures", "Makefile")) {
+			for _, f := range file.FindAll(file.JoinPaths(script.RepoRoot(), "**", "test-fixtures", "Makefile")) {
 				dir := filepath.Dir(f)
 				file.InDir(dir, func() {
 					log.Log("Building fixture %s", dir)
@@ -45,8 +45,9 @@ func FixtureTasks() script.Task {
 				Name:        "fixtures:fingerprint",
 				Description: "get test fixtures cache fingerprint",
 				Run: func() {
+					_, _ = os.Stderr.WriteString("Returning fingerprint: " + file.Fingerprint("**/test-fixtures/*"))
 					// should this be "**/test-fixtures/Makefile" ?
-					lang.Return(os.Stdout.WriteString(file.Fingerprint("**/test-fixtures/*")))
+					lang.Return(os.Stdout.WriteString(file.Fingerprint(file.JoinPaths(script.RepoRoot(), "**", "test-fixtures", "*"))))
 				},
 			},
 		},

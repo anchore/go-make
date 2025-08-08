@@ -123,7 +123,7 @@ func Require(file string) {
 
 // Find finds the first matching file given a glob expression in the CWD
 func Find(glob string) string {
-	matches := lang.Return(doublestar.FilepathGlob(glob))
+	matches := FindAll(glob)
 	if len(matches) > 0 {
 		return matches[0]
 	}
