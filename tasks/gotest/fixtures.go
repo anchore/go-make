@@ -26,8 +26,9 @@ func FixtureTasks() script.Task {
 		},
 		Tasks: []script.Task{
 			{
-				Name:        "clean", // this only runs explicitly with fixtures:clean
+				Name:        "fixtures:clean",
 				Description: "clean internal git test fixture caches",
+				RunsOn:      lang.List("clean"),
 				Run: func() {
 					for _, f := range file.FindAll(file.JoinPaths(script.RepoRoot(), "**", "test-fixtures", "Makefile")) {
 						dir := filepath.Dir(f)

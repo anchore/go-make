@@ -1,11 +1,11 @@
 package script
 
 import (
-	"cmp"
 	"fmt"
 	"iter"
 	"maps"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/anchore/go-make/color"
@@ -63,7 +63,7 @@ func (t *taskRunner) Help() {
 	}
 }
 
-type set[T cmp.Ordered] map[T]struct{}
+type set[T comparable] map[T]struct{}
 
 func (s set[T]) Add(items ...T) {
 	for _, item := range items {
@@ -78,7 +78,16 @@ func (s set[T]) Contains(item T) bool {
 
 func (s set[T]) Sorted() iter.Seq[T] {
 	items := slices.Collect(maps.Keys(s))
-	slices.Sort(items)
+	switch typed := any(items).(type) {
+	case []int:
+		slices.Sort(typed)
+	case []string:
+		slices.Sort(typed)
+	default:
+		sort.Slice(items, func(i, j int) bool {
+			return strings.Compare(fmt.Sprintf("%v", items[i]), fmt.Sprintf("%v", items[j])) < 0
+		})
+	}
 	return func(yield func(T) bool) {
 		for _, item := range items {
 			if !yield(item) {

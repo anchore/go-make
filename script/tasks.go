@@ -91,7 +91,7 @@ func Makefile(tasks ...Task) {
 
 type taskRunner struct {
 	tasks []*Task
-	run   map[string]struct{}
+	run   set[*Task]
 }
 
 func (t *taskRunner) addTasks(tasks ...Task) {
@@ -110,6 +110,7 @@ func (t *taskRunner) Run(args ...string) {
 		// run the default/first task
 		args = append(args, allTasks[0].Name)
 	}
+	t.run = set[*Task]{}
 	for _, taskName := range args {
 		t.runTask(taskName)
 	}
@@ -125,16 +126,12 @@ func (t *taskRunner) runTask(name string) {
 		panic(fmt.Errorf("no tasks named: %s", color.Bold(color.Underline(name))))
 	}
 
-	if t.run == nil {
-		t.run = map[string]struct{}{}
-	}
-
 	for _, tsk := range tasks {
 		// don't re-run the same task
-		if _, ok := t.run[tsk.Name]; ok {
+		if t.run.Contains(tsk) {
 			continue
 		}
-		t.run[tsk.Name] = struct{}{}
+		t.run.Add(tsk)
 		for _, dep := range t.findByLabel(tsk.Name) {
 			t.runTask(dep.Name)
 		}
