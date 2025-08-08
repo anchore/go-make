@@ -1,6 +1,16 @@
 name: "Bootstrap"
 description: "Bootstrap all tools and dependencies"
 inputs:
+  go-version:
+    description: "Go version to install"
+  go-version-file:
+    description: "Go version file to use"
+    default: go.mod
+  cache-dependency-path:
+    description: "Setup Go cache dependency path"
+    default: |
+      go.sum
+      make/go.sum
   cache-key-prefix:
     description: "Prefix all cache keys with this value"
     required: true
@@ -11,11 +21,13 @@ runs:
   steps:
     - uses: actions/setup-go@v5
       with:
-        go-version-file: ${{ github.workspace }}/go.mod
+        go-version: ${{ inputs.go-version }}
+        go-version-file: ${{ inputs.go-version-file }}
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}
 
     - name: Restore tool cache
       id: tool-cache
       uses: actions/cache@v3
       with:
-        path: ${{ github.workspace }}/.tmp
+        path: ${{ github.workspace }}/.tool
         key: ${{ inputs.cache-key-prefix }}-${{ runner.os }}-tool }}
