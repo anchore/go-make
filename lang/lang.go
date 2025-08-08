@@ -42,6 +42,15 @@ func Remove[T comparable](values []T, shouldRemove func(T) bool) []T {
 	return out
 }
 
+// Map returns a new slice with values mapped from incoming to outgoing in mapFunc
+func Map[From, To any](values []From, mapFunc func(From) To) []To {
+	out := make([]To, len(values))
+	for i := 0; i < len(values); i++ {
+		out[i] = mapFunc(values[i])
+	}
+	return out
+}
+
 // isEmpty returns true if the value seems to be an empty value: default, invalid, nil, 0-element slice, etc.
 func isEmpty(v reflect.Value) bool {
 	switch v.Kind() {

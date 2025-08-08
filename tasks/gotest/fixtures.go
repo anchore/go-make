@@ -47,9 +47,19 @@ func FixtureTasks() script.Task {
 				Name:        "fixtures:directories",
 				Description: "list all fixture directories",
 				Run: func() {
-					paths := file.FindAll(file.JoinPaths(script.RepoRoot(), "**/test-fixtures/*"))
+					repoRoot := script.RepoRoot()
+					// find all direct subdirectories of our repoRoot's test-fixtures directories
+					paths := file.FindAll(file.JoinPaths(repoRoot, "**/test-fixtures/*"))
+					// only return subdirectories
 					paths = lang.Remove(paths, func(path string) bool {
 						return !file.IsDir(path)
+					})
+					// return relative paths
+					paths = lang.Map(paths, func(path string) string {
+						path = strings.TrimPrefix(path, repoRoot)
+						path = filepath.ToSlash(path)
+						path = strings.TrimPrefix(path, "/")
+						return path
 					})
 					lang.Return(os.Stdout.WriteString(strings.Join(paths, "\n")))
 				},
