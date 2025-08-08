@@ -3,6 +3,7 @@ package gotest
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/anchore/go-make/file"
 	"github.com/anchore/go-make/lang"
@@ -16,7 +17,7 @@ func FixtureTasks() script.Task {
 		Description: "build test fixtures",
 		RunsOn:      lang.List("unit"),
 		Run: func() {
-			for _, f := range file.FindAll(file.JoinPaths(script.RepoRoot(), "**", "test-fixtures", "Makefile")) {
+			for _, f := range file.FindAll(file.JoinPaths(script.RepoRoot(), "**/test-fixtures/Makefile")) {
 				dir := filepath.Dir(f)
 				file.InDir(dir, func() {
 					log.Log("Building fixture %s", dir)
@@ -30,7 +31,7 @@ func FixtureTasks() script.Task {
 				Description: "clean internal git test fixture caches",
 				RunsOn:      lang.List("clean"),
 				Run: func() {
-					for _, f := range file.FindAll(file.JoinPaths(script.RepoRoot(), "**", "test-fixtures", "Makefile")) {
+					for _, f := range file.FindAll(file.JoinPaths(script.RepoRoot(), "**/test-fixtures/Makefile")) {
 						dir := filepath.Dir(f)
 						file.InDir(dir, func() {
 							log.Log("Cleaning fixture %s", dir)
@@ -43,12 +44,22 @@ func FixtureTasks() script.Task {
 				},
 			},
 			{
+				Name:        "fixtures:directories",
+				Description: "list all fixture directories",
+				Run: func() {
+					paths := file.FindAll(file.JoinPaths(script.RepoRoot(), "**/test-fixtures/*"))
+					paths = lang.Remove(paths, func(path string) bool {
+						return !file.IsDir(path)
+					})
+					lang.Return(os.Stdout.WriteString(strings.Join(paths, "\n")))
+				},
+			},
+			{
 				Name:        "fixtures:fingerprint",
 				Description: "get test fixtures cache fingerprint",
 				Run: func() {
-					_, _ = os.Stderr.WriteString("Returning fingerprint: " + file.Fingerprint("**/test-fixtures/*"))
 					// should this be "**/test-fixtures/Makefile" ?
-					lang.Return(os.Stdout.WriteString(file.Fingerprint(file.JoinPaths(script.RepoRoot(), "**", "test-fixtures", "*"))))
+					lang.Return(os.Stdout.WriteString(file.Fingerprint(file.JoinPaths(script.RepoRoot(), "**/test-fixtures/*"))))
 				},
 			},
 		},

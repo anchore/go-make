@@ -30,14 +30,16 @@ func List[T any](values ...T) []T {
 	return values
 }
 
-// Remove removes all matching values, modifying the slice and returning the modified slice
-func Remove[T comparable](values []T, toRemove T) []T {
+// Remove returns a new slice with values removed based on true returns from shouldRemove
+func Remove[T comparable](values []T, shouldRemove func(T) bool) []T {
+	var out []T
 	for i := 0; i < len(values); i++ {
-		if values[i] == toRemove {
-			values = append(values[0:i], values[i+1:]...)
+		if shouldRemove(values[i]) {
+			continue
 		}
+		out = append(out, values[i])
 	}
-	return values
+	return out
 }
 
 // isEmpty returns true if the value seems to be an empty value: default, invalid, nil, 0-element slice, etc.
