@@ -49,13 +49,10 @@ func FixtureTasks() script.Task {
 				Run: func() {
 					repoRoot := script.RepoRoot()
 					// find all direct subdirectories of our repoRoot's test-fixtures directories
-					paths := file.FindAll(file.JoinPaths(repoRoot, "**/test-fixtures/*"))
-					// only return subdirectories
-					paths = lang.Remove(paths, func(path string) bool {
-						return !file.IsDir(path)
-					})
+					paths := file.FindAll(file.JoinPaths(repoRoot, "**/test-fixtures/*/.gitignore"))
 					// return relative paths
 					paths = lang.Map(paths, func(path string) string {
+						path = filepath.Dir(path)
 						path = strings.TrimPrefix(path, repoRoot)
 						path = filepath.ToSlash(path)
 						path = strings.TrimPrefix(path, "/")
