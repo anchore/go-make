@@ -20,9 +20,10 @@ runs:
   using: "composite"
   steps:
     - uses: actions/setup-go@v5
+      if: ${{ inputs.go-version != '' || inputs.go-version-file != '' }}
       with:
         go-version: ${{ inputs.go-version }}
-        go-version-file: ${{ inputs.go-version-file }}
+        go-version-file: ${{ !inputs.go-version && inputs.go-version-file || '' }}
         cache-dependency-path: ${{ inputs.cache-dependency-path }}
 
     - name: Restore tool cache
