@@ -14,7 +14,7 @@ inputs:
   cache-key-prefix:
     description: "Prefix all cache keys with this value"
     required: true
-    default: "831180ac25"
+    default: "go-make"
 
 runs:
   using: "composite"
@@ -51,4 +51,4 @@ runs:
       with:
         path: |
           ${{ steps.unit-fixtures.outputs.FIXTURES_DIRECTORIES }}
-        key: ${{ runner.os }}-unit-fixture-cache-${{ steps.unit-fixtures.outputs.FIXTURES_FINGERPRINT }}
+        key: ${{ inputs.cache-key-prefix }}-${{ runner.os }}-unit-fixture-cache-${{ steps.unit-fixtures.outputs.FIXTURES_FINGERPRINT }}
