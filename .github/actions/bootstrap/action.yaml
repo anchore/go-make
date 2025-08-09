@@ -31,7 +31,7 @@ runs:
       uses: actions/cache@v3
       with:
         path: ${{ github.workspace }}/.tool
-        key: ${{ inputs.cache-key-prefix }}-${{ runner.os }}-tool }}
+        key: ${{ inputs.cache-key-prefix }}-${{ runner.os }}-tool-${{ hashFiles('.binny.yaml') }}
 
     - name: Build cache key for test-fixture
       id: unit-fixtures
