@@ -32,3 +32,23 @@ runs:
       with:
         path: ${{ github.workspace }}/.tool
         key: ${{ inputs.cache-key-prefix }}-${{ runner.os }}-tool }}
+
+    - name: Build cache key for test-fixture
+      id: unit-fixtures
+      shell: bash # Windows
+      run: |
+        echo "FIXTURES_FINGERPRINT=$(make fixtures:fingerprint)" >> "$GITHUB_OUTPUT"
+        {
+          echo 'FIXTURES_DIRECTORIES<<EOF'
+          echo "$(make fixtures:directories)"
+          echo EOF
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Restore test-fixture cache
+      id: unit-fixture-cache
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 #v4.2.3
+      if: ${{ steps.unit-fixtures.outputs.FIXTURES_DIRECTORIES }}
+      with:
+        path: |
+          ${{ steps.unit-fixtures.outputs.FIXTURES_DIRECTORIES }}
+        key: ${{ runner.os }}-unit-fixture-cache-${{ steps.unit-fixtures.outputs.FIXTURES_FINGERPRINT }}
