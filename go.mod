@@ -1,6 +1,6 @@
 module github.com/anchore/go-make
 
-go 1.23.0
+go 1.23.1 // for go 1.23, use .1, as .0 has a setup-go cache restore bug
 
 require (
 	github.com/bmatcuk/doublestar/v4 v4.9.1

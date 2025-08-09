@@ -34,8 +34,9 @@ jobs:
           - macos-15
           - macos-14 #latest
         go-version:
-          - 1.24.0 # latest
-          - '' # 1.23.0 from go.mod
+          - latest
+          - 1.24.0
+          - '' # version from go.mod
 
     steps:
       - uses: actions/checkout@v4
