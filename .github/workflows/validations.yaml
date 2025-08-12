@@ -11,7 +11,7 @@ on:
 
 jobs:
   Static-Analysis:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -37,7 +37,6 @@ jobs:
           - macos-latest # 14
         go-version:
           - stable # use latest stable version
-          - 1.24.0
           - '' # version from go.mod
 
     steps:
