@@ -17,7 +17,7 @@ func FixtureTasks() script.Task {
 		Description: "build test fixtures",
 		RunsOn:      lang.List("unit"),
 		Run: func() {
-			for _, f := range file.FindAll(file.JoinPaths(script.RepoRoot(), "**/test-fixtures/Makefile")) {
+			for _, f := range file.FindAll(file.JoinPaths(script.RepoRoot(), "**/{test-fixtures,testdata}/Makefile")) {
 				dir := filepath.Dir(f)
 				file.InDir(dir, func() {
 					log.Log("Building fixture %s", dir)
@@ -31,7 +31,7 @@ func FixtureTasks() script.Task {
 				Description: "clean internal git test fixture caches",
 				RunsOn:      lang.List("clean"),
 				Run: func() {
-					for _, f := range file.FindAll(file.JoinPaths(script.RepoRoot(), "**/test-fixtures/Makefile")) {
+					for _, f := range file.FindAll(file.JoinPaths(script.RepoRoot(), "**/{test-fixtures,testdata}/Makefile")) {
 						dir := filepath.Dir(f)
 						file.InDir(dir, func() {
 							log.Log("Cleaning fixture %s", dir)
@@ -49,7 +49,7 @@ func FixtureTasks() script.Task {
 				Run: func() {
 					repoRoot := script.RepoRoot()
 					// find all direct subdirectories of our repoRoot's test-fixtures directories
-					paths := file.FindAll(file.JoinPaths(repoRoot, "**/test-fixtures/*/.gitignore"))
+					paths := file.FindAll(file.JoinPaths(repoRoot, "**/{test-fixtures,testdata}/*/.gitignore"))
 					// return relative paths
 					paths = lang.Map(paths, func(path string) string {
 						path = filepath.Dir(path)
@@ -65,8 +65,8 @@ func FixtureTasks() script.Task {
 				Name:        "fixtures:fingerprint",
 				Description: "get test fixtures cache fingerprint",
 				Run: func() {
-					// should this be "**/test-fixtures/Makefile" ?
-					lang.Return(os.Stdout.WriteString(file.Fingerprint(file.JoinPaths(script.RepoRoot(), "**/test-fixtures/*"))))
+					// should this be ".../Makefile" ?
+					lang.Return(os.Stdout.WriteString(file.Fingerprint(file.JoinPaths(script.RepoRoot(), "**/{test-fixtures,testdata}/*"))))
 				},
 			},
 		},

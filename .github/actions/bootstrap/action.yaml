@@ -38,7 +38,7 @@ runs:
         path: ${{ github.workspace }}/.tool
         key: ${{ inputs.cache-key-prefix }}-${{ runner.os }}-tool-${{ hashFiles('.binny.yaml') }}
 
-    - name: Build cache key for test-fixture
+    - name: Build cache key for test fixtures
       id: unit-fixtures
       shell: bash # necessary to be explicit for Windows
       run: |
