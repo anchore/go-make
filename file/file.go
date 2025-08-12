@@ -2,6 +2,7 @@ package file
 
 import (
 	"crypto/md5" //nolint: gosec
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -82,6 +83,19 @@ func IsDir(dir string) bool {
 		return false
 	}
 	return s.IsDir()
+}
+
+// EnsureDir checks if the directory exists. create if not, including any subdirectories needed
+func EnsureDir(dir string) {
+	s, err := os.Stat(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		lang.Throw(os.MkdirAll(dir, 0o755))
+		s, err = os.Stat(dir)
+	}
+	if s == nil || !s.IsDir() {
+		panic(fmt.Errorf("path '%s' is not a directory", dir))
+	}
+	lang.Throw(err)
 }
 
 // IsRegular indicates the provided file exists and is a regular file, not a directory or symlink
