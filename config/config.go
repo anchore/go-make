@@ -12,7 +12,8 @@ var (
 )
 
 func init() {
-	DebugEnabled, _ = strconv.ParseBool(Env("DEBUG", "false"))
+	DebugEnabled, _ = strconv.ParseBool(Env("DEBUG",
+		Env("ACTIONS_RUNNER_DEBUG", "false")))
 	TraceEnabled, _ = strconv.ParseBool(Env("TRACE", "false"))
 }
 

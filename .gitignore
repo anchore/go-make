@@ -1,3 +1,5 @@
 .idea/
 .tool/
 .mise.toml
+/CHANGELOG.md
+/VERSION

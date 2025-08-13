@@ -52,7 +52,7 @@ func WorkflowTask() Task {
 			// ensure we have up-to-date git tags
 			Run("git fetch --tags")
 
-			generateAndShowChangelog()
+			GenerateAndShowChangelog()
 
 			// read next version from VERSION file
 			version := file.Read(versionFile)

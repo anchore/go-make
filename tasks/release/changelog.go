@@ -2,11 +2,16 @@ package release
 
 import (
 	"fmt"
+	"github.com/anchore/go-make/lang"
+	"os"
+	"strings"
 
 	. "github.com/anchore/go-make"
 	"github.com/anchore/go-make/binny"
 	"github.com/anchore/go-make/file"
+	"github.com/anchore/go-make/log"
 	"github.com/anchore/go-make/run"
+	"github.com/anchore/go-make/script"
 )
 
 const (
@@ -18,7 +23,7 @@ func ChangelogTask() Task {
 	return Task{
 		Name:        "changelog",
 		Description: "generate a changelog",
-		Run:         generateAndShowChangelog,
+		Run:         func() { GenerateAndShowChangelog() },
 		Tasks: []Task{
 			{
 				Name: "clean",
@@ -30,13 +35,20 @@ func ChangelogTask() Task {
 	}
 }
 
-func generateAndShowChangelog() {
-	run.Command("chronicle -n --version-file", run.Args(versionFile), run.Write(changelogFile))
+func GenerateAndShowChangelog() (changelogFilePath, versionFilePath string) {
+	// gh auth status should fail the user is not authenticated
+	log.Debug(script.Run("gh auth status"))
+	ghAuthToken := script.Run("gh auth token")
+	ghAuthToken = strings.TrimSpace(ghAuthToken)
+	log.Debug("Auth token: %.10s...", ghAuthToken)
 
+	script.Run("chronicle -n --version-file", run.Args(versionFile), run.Write(changelogFile), run.Env("GITHUB_TOKEN", ghAuthToken))
+
+	changelog := file.Read(changelogFile)
 	if binny.IsManagedTool("glow") {
-		run.Command(fmt.Sprintf(`glow -w 0 %s`, changelogFile))
-		return
+		changelog = script.Run(fmt.Sprintf(`glow -w 0 %s`, changelogFile))
 	}
+	lang.Return(os.Stderr.WriteString(changelog))
 
-	fmt.Println(file.Read(changelogFile))
+	return changelogFile, versionFile
 }

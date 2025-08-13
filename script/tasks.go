@@ -70,15 +70,26 @@ func Makefile(tasks ...Task) {
 			Description: "clean all generated files",
 		},
 		&Task{
-			Name:        "test",
-			Description: "run all tests",
-		},
-		&Task{
 			Name:   "binny:clean",
 			RunsOn: lang.List("clean"),
 			Run: func() {
 				file.Delete(".tool")
 			},
+		},
+		&Task{
+			Name:        "dependencies:update",
+			Description: "update all dependencies",
+		},
+		&Task{
+			Name:   "binny:update",
+			RunsOn: lang.List("dependencies:update"),
+			Run: func() {
+				Run("binny update")
+			},
+		},
+		&Task{
+			Name:        "test",
+			Description: "run all tests",
 		},
 		&Task{
 			Name: "makefile",
