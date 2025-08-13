@@ -7,6 +7,15 @@ import (
 	"github.com/anchore/go-make/log"
 )
 
+// Default returns the first value that does not equal the type's default value
+func Default[T comparable](value T, defaultValue T) T {
+	var def T
+	if value == def {
+		return defaultValue
+	}
+	return value
+}
+
 // Return returns the provided value, panicking if a non-nil error is provided
 func Return[T any](t T, e error) T {
 	Throw(e)

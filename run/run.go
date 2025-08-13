@@ -14,7 +14,6 @@ import (
 	"github.com/anchore/go-make/config"
 	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
-	"github.com/anchore/go-make/template"
 )
 
 // Option is used to alter the command used in Exec calls
@@ -60,7 +59,7 @@ func Command(cmd string, opts ...Option) string {
 				WithLog(outStr))
 	}
 
-	return stdout.String()
+	return strings.TrimSpace(stdout.String())
 }
 
 // Args appends args to the command
@@ -117,7 +116,7 @@ func Stdin(in io.Reader) Option {
 // Env adds an environment variable to the command
 func Env(key, val string) Option {
 	return func(_ context.Context, cmd *exec.Cmd) error {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, template.Render(val)))
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, val))
 		return nil
 	}
 }

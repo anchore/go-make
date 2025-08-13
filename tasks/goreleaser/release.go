@@ -1,8 +1,7 @@
-package release
+package goreleaser
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 
@@ -10,6 +9,8 @@ import (
 	"github.com/anchore/go-make/binny"
 	"github.com/anchore/go-make/file"
 	"github.com/anchore/go-make/log"
+	"github.com/anchore/go-make/run"
+	"github.com/anchore/go-make/tasks/release"
 )
 
 const configName = ".goreleaser.yaml"
@@ -17,10 +18,9 @@ const configName = ".goreleaser.yaml"
 func Tasks() Task {
 	return Task{
 		Tasks: []Task{
-			ChangelogTask(),
 			SnapshotTasks(),
 			CIReleaseTask(),
-			WorkflowTask(),
+			release.WorkflowReleaseTask(),
 		},
 	}
 }
@@ -35,9 +35,9 @@ func CIReleaseTask() Task {
 
 			failIfNotInCI()
 			ensureHeadHasTag()
-			generateAndShowChangelog()
+			changelogFile, _ := release.GenerateAndShowChangelog()
 
-			Run(fmt.Sprintf(`goreleaser release --clean --snapshot --releasenotes %s`, changelogFile))
+			Run(`goreleaser release --clean --release-notes`, run.Args(changelogFile))
 		},
 		Tasks: []Task{quillInstallTask(), syftInstallTask(), {
 			Name:         "release:dependencies",

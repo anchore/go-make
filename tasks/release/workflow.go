@@ -9,12 +9,12 @@ import (
 	"time"
 
 	. "github.com/anchore/go-make"
-	"github.com/anchore/go-make/color"
 	"github.com/anchore/go-make/file"
 	"github.com/anchore/go-make/gomod"
 	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
 	"github.com/anchore/go-make/run"
+	"github.com/anchore/go-make/script"
 )
 
 const (
@@ -22,7 +22,7 @@ const (
 	workflowsPath       = ".github/workflows"
 )
 
-func WorkflowTask() Task {
+func WorkflowReleaseTask() Task {
 	return Task{
 		Name:        "release",
 		Description: "trigger a release github actions workflow",
@@ -52,7 +52,7 @@ func WorkflowTask() Task {
 			// ensure we have up-to-date git tags
 			Run("git fetch --tags")
 
-			generateAndShowChangelog()
+			GenerateAndShowChangelog()
 
 			// read next version from VERSION file
 			version := file.Read(versionFile)
@@ -64,22 +64,7 @@ func WorkflowTask() Task {
 			}
 
 			// confirm if we should release
-		loop:
-			for {
-				log.Log("Do you want to trigger a release for version '%s'? [y/n]", nextVersion)
-				var yn string
-				_, err := fmt.Scan(&yn)
-				lang.Throw(err)
-				switch strings.ToLower(yn) {
-				case "y":
-					break loop
-				case "n":
-					log.Log(color.Red("Cancelling release..."))
-					return
-				default:
-					log.Log("Please answer 'y' or 'n'")
-				}
-			}
+			script.Confirm("Do you want to trigger a release for version '%s'?", nextVersion)
 
 			// trigger release
 			log.Log("Kicking off release for %s", nextVersion)
