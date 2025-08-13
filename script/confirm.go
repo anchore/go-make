@@ -20,7 +20,7 @@ loop:
 		case "y":
 			break loop
 		case "n":
-			panic(fmt.Errorf("CANCELLED: "+format, args))
+			panic(fmt.Errorf("CANCELLED: "+format, args...))
 		default:
 			log.Log(color.Red("Please answer 'y' or 'n'"))
 		}
