@@ -1,15 +1,46 @@
 package gotest
 
 import (
-	"bytes"
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
-	. "github.com/anchore/go-make" //nolint:stylecheck
+	"github.com/bmatcuk/doublestar/v4"
+
+	. "github.com/anchore/go-make"
+	"github.com/anchore/go-make/file"
+	"github.com/anchore/go-make/run"
 )
 
+func Tasks(options ...Option) Task {
+	cfg := defaultConfig()
+	for _, opt := range options {
+		opt(&cfg)
+	}
+
+	return Task{
+		Name:         cfg.Name,
+		Description:  fmt.Sprintf("run %s tests", cfg.Name),
+		Dependencies: cfg.Dependencies,
+		RunsOn:       List("test"),
+		Run: func() {
+			start := time.Now()
+			args := List("test")
+			if cfg.Verbose {
+				args = append(args, "-v")
+			}
+			args = append(args, selectPackages(cfg.IncludeGlob, cfg.ExcludeGlob)...)
+
+			Run("go", run.Args(args...))
+
+			Log("Done running %s tests in %v", cfg.Name, time.Since(start))
+		},
+	}
+}
+
 type Config struct {
+	Name         string
 	IncludeGlob  string
 	ExcludeGlob  string
 	Dependencies []string
@@ -18,6 +49,7 @@ type Config struct {
 
 func defaultConfig() Config {
 	return Config{
+		Name:        "unit",
 		IncludeGlob: "./...",
 	}
 }
@@ -54,43 +86,18 @@ func WithVerbose() Option {
 	}
 }
 
-func Test(name string, options ...Option) Task {
-	cfg := defaultConfig()
-	for _, opt := range options {
-		opt(&cfg)
-	}
-
-	return Task{
-		Name:   name,
-		Desc:   fmt.Sprintf("run %s tests", name),
-		Deps:   cfg.Dependencies,
-		Labels: All("test"),
-		Run: func() {
-			var args []string
-			args = append(args, "go test")
-			if cfg.Verbose {
-				args = append(args, "-v")
-			}
-			args = append(args, selectPackages(cfg.IncludeGlob, cfg.ExcludeGlob)...)
-
-			Run(strings.Join(args, " "))
-		},
-	}
-}
-
 func selectPackages(include, exclude string) []string {
 	if exclude == "" {
 		return []string{include}
 	}
 
-	var absDirs bytes.Buffer
 	// TODO: cannot use {{"{{.Dir}}"}} as a -f arg, and escaping is not working
-	RunWithOptions(fmt.Sprintf(`go list %s`, include), ExecOut(&absDirs))
+	absDirs := Run(`go list`, run.Args(include))
 
 	// split by newline, and use relpath with cwd to get the non-absolute path
 	var dirs []string
-	cwd := Cwd()
-	for _, dir := range strings.Split(absDirs.String(), "\n") {
+	cwd := file.Cwd()
+	for _, dir := range strings.Split(absDirs, "\n") {
 		p, err := filepath.Rel(cwd, dir)
 		if err != nil {
 			dirs = append(dirs, dir)
@@ -101,7 +108,7 @@ func selectPackages(include, exclude string) []string {
 
 	var final []string
 	for _, dir := range dirs {
-		matched, err := filepath.Match(exclude, dir)
+		matched, err := doublestar.Match(exclude, dir)
 		if err != nil {
 			final = append(final, dir)
 			continue

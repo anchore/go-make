@@ -3,7 +3,10 @@ package release
 import (
 	"fmt"
 
-	gomake "github.com/anchore/go-make"
+	. "github.com/anchore/go-make"
+	"github.com/anchore/go-make/binny"
+	"github.com/anchore/go-make/file"
+	"github.com/anchore/go-make/run"
 )
 
 const (
@@ -11,21 +14,29 @@ const (
 	versionFile   = "VERSION"
 )
 
-func ChangelogTask() gomake.Task {
-	return gomake.Task{
-		Name: "changelog",
-		Desc: "generate a changelog",
-		Run:  generateAndShowChangelog,
+func ChangelogTask() Task {
+	return Task{
+		Name:        "changelog",
+		Description: "generate a changelog",
+		Run:         generateAndShowChangelog,
+		Tasks: []Task{
+			{
+				Name: "clean",
+				Run: func() {
+					file.Delete(changelogFile)
+				},
+			},
+		},
 	}
 }
 
 func generateAndShowChangelog() {
-	gomake.RunWithOptions(fmt.Sprintf(`chronicle -n --version-file %s`, versionFile), gomake.ExecStd(), gomake.ExecOutToFile(changelogFile))
+	run.Command("chronicle -n --version-file", run.Args(versionFile), run.Write(changelogFile))
 
-	if gomake.IsBinnyManagedTool("glow") {
-		gomake.Run(fmt.Sprintf(`glow -w 0 %s`, changelogFile))
+	if binny.IsManagedTool("glow") {
+		run.Command(fmt.Sprintf(`glow -w 0 %s`, changelogFile))
 		return
 	}
 
-	fmt.Println(gomake.ReadFile(changelogFile))
+	fmt.Println(file.Read(changelogFile))
 }

@@ -1,14 +1,20 @@
 package release
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
-	. "github.com/anchore/go-make" //nolint:stylecheck
+	. "github.com/anchore/go-make"
+	"github.com/anchore/go-make/color"
+	"github.com/anchore/go-make/file"
+	"github.com/anchore/go-make/gomod"
+	"github.com/anchore/go-make/lang"
+	"github.com/anchore/go-make/log"
+	"github.com/anchore/go-make/run"
 )
 
 const (
@@ -18,22 +24,29 @@ const (
 
 func WorkflowTask() Task {
 	return Task{
-		Name: "release",
-		Desc: "trigger a release github actions workflow",
+		Name:        "release",
+		Description: "trigger a release github actions workflow",
 		Run: func() {
-			EnsureFileExists(filepath.Join(workflowsPath, releaseWorkflowName))
+			file.Require(filepath.Join(workflowsPath, releaseWorkflowName))
 
-			Run("gh auth status")
+			Run("gh auth status", run.Stdout(os.Stderr))
 
-			// TODO: gh repo set-default OWNER/PROJECT
+			m := gomod.Read()
+			if m != nil {
+				if strings.HasPrefix(m.Module.Mod.Path, "github.com/") {
+					ghRepo := strings.TrimPrefix(m.Module.Mod.Path, "github.com/")
+					ghRepo = regexp.MustCompile(`([^/]+/[^/]+)/.*`).ReplaceAllString(ghRepo, "$1")
+					if strings.Count(ghRepo, "/") == 1 {
+						Run("gh repo set default", run.Args(ghRepo))
+					}
+				}
+			}
 
 			// get the GitHub token
 			githubToken := os.Getenv("GITHUB_TOKEN")
 			if githubToken == "" {
-				var tokenBuf bytes.Buffer
-				RunWithOptions("gh auth token", ExecOut(&tokenBuf))
-				githubToken = strings.TrimSpace(tokenBuf.String())
-				NoErr(os.Setenv("GITHUB_TOKEN", githubToken))
+				githubToken = Run("gh auth token")
+				lang.Throw(os.Setenv("GITHUB_TOKEN", githubToken))
 			}
 
 			// ensure we have up-to-date git tags
@@ -42,42 +55,41 @@ func WorkflowTask() Task {
 			generateAndShowChangelog()
 
 			// read next version from VERSION file
-			version := ReadFile(versionFile)
+			version := file.Read(versionFile)
 			nextVersion := strings.TrimSpace(version)
 
 			if nextVersion == "" || nextVersion == "(Unreleased)" {
-				Log("Could not determine the next version to release. Exiting...")
+				log.Log("Could not determine the next version to release. Exiting...")
 				os.Exit(1)
 			}
 
 			// confirm if we should release
 		loop:
 			for {
-				Log("Do you want to trigger a release for version '%s'? [y/n]", nextVersion)
+				log.Log("Do you want to trigger a release for version '%s'? [y/n]", nextVersion)
 				var yn string
 				_, err := fmt.Scan(&yn)
-				NoErr(err)
+				lang.Throw(err)
 				switch strings.ToLower(yn) {
 				case "y":
 					break loop
 				case "n":
-					Log("Cancelling release...")
+					log.Log(color.Red("Cancelling release..."))
 					return
 				default:
-					Log("Please answer 'y' or 'n'")
+					log.Log("Please answer 'y' or 'n'")
 				}
 			}
 
 			// trigger release
-			Log("Kicking off release for %s", nextVersion)
+			log.Log("Kicking off release for %s", nextVersion)
 			Run(fmt.Sprintf("gh workflow run %s -f version=%s", releaseWorkflowName, nextVersion))
 
-			Log("Waiting for release to start...")
+			log.Log("Waiting for release to start...")
 			time.Sleep(10 * time.Second)
 
-			var urlBuf bytes.Buffer
-			RunWithOptions(fmt.Sprintf("gh run list --workflow=%s --limit=1 --json url --jq '.[].url'", releaseWorkflowName), ExecOut(&urlBuf))
-			Log(urlBuf.String())
+			url := Run(fmt.Sprintf("gh run list --workflow=%s --limit=1 --json url --jq '.[].url'", releaseWorkflowName))
+			log.Log(url)
 		},
 	}
 }

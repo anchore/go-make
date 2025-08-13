@@ -1,48 +1,74 @@
 package golint
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
-	. "github.com/anchore/go-make" //nolint:stylecheck
+	"github.com/anchore/go-make/file"
+	"github.com/anchore/go-make/gomod"
+	"github.com/anchore/go-make/lang"
+	"github.com/anchore/go-make/log"
+	"github.com/anchore/go-make/run"
+	"github.com/anchore/go-make/script"
+	"github.com/anchore/go-make/template"
 )
 
 func init() {
-	Globals["LocalPackage"] = "github.com/anchore"
+	template.Globals["LocalPackage"] = func() string {
+		gm := gomod.Read()
+		if gm != nil && gm.Module != nil {
+			return regexp.MustCompile(`([^/]+/[^/]+)/.*`).ReplaceAllString(gm.Module.Mod.Path, "$1")
+		}
+		return ""
+	}
 }
 
-func Tasks() Task {
-	return Task{
-		Tasks: []Task{
-			StaticAnalysisTask(),
+type Option run.Option
+
+func SkipTests() Option {
+	return func(ctx context.Context, cmd *exec.Cmd) error {
+		if strings.Contains(cmd.Args[0], "golangci-lint") {
+			cmd.Args = append(cmd.Args, "--tests=false")
+		}
+		return nil
+	}
+}
+
+func Tasks(options ...Option) script.Task {
+	return script.Task{
+		Tasks: []script.Task{
+			StaticAnalysisTask(options...),
 			FormatTask(),
-			LintFixTask(),
+			LintFixTask(options...),
 		},
 	}
 }
 
-func StaticAnalysisTask() Task {
-	return Task{
-		Name:   "static-analysis",
-		Desc:   "run lint checks",
-		Labels: All("default"),
+func StaticAnalysisTask(options ...Option) script.Task {
+	return script.Task{
+		Name:        "static-analysis",
+		Description: "run lint checks",
+		RunsOn:      lang.List("default"),
 		Run: func() {
 			if hasModTidyDiff() {
-				Run("go mod tidy -diff")
+				script.Run("go mod tidy -diff")
 			}
-			Debug("CWD: %s", Cwd())
-			Run("golangci-lint run")
-			NoErr(findMalformedFilenames("."))
-			Run(`bouncer check ./...`)
+			log.Debug("CWD: %s", file.Cwd())
+			script.Run("golangci-lint run", toRunOpts(options)...)
+			lang.Throw(findMalformedFilenames("."))
+			script.Run(`bouncer check ./...`, toRunOpts(options)...)
 		},
 	}
 }
 
 func hasModTidyDiff() bool {
-	gm := ReadGoMod()
+	gm := gomod.Read()
 	if gm == nil || gm.Go == nil {
 		return false
 	}
@@ -50,36 +76,48 @@ func hasModTidyDiff() bool {
 	if len(parts) < 2 {
 		return false
 	}
-	return Get(strconv.Atoi(parts[1])) >= 23
+	return lang.Return(strconv.Atoi(parts[1])) >= 23
 }
 
-func FormatTask() Task {
-	return Task{
-		Name: "format",
-		Desc: "format all source files",
+func FormatTask() script.Task {
+	return script.Task{
+		Name:        "format",
+		Description: "format all source files",
 		Run: func() {
-			Run(`gofmt -w -s .`)
-			Run(`gosimports -local {{LocalPackage}} -w .`)
-			Run(`go mod tidy`)
+			script.Run(`gofmt -w -s .`)
+			if template.Globals["LocalPackage"] != nil {
+				script.Run(`gosimports -local {{LocalPackage}} -w .`)
+			} else {
+				script.Run(`gosimports -w .`)
+			}
+			script.Run(`go mod tidy`)
 		},
 	}
 }
 
-func LintFixTask() Task {
-	return Task{
-		Name: "lint-fix",
-		Desc: "format and run lint fix",
-		Deps: All("format"),
+func LintFixTask(options ...Option) script.Task {
+	return script.Task{
+		Name:         "lint-fix",
+		Description:  "format and run lint fix",
+		Dependencies: lang.List("format"),
 		Run: func() {
-			Run("golangci-lint run --fix")
+			script.Run("golangci-lint run --fix", toRunOpts(options)...)
 		},
 	}
+}
+
+func toRunOpts(options []Option) []run.Option {
+	var out []run.Option
+	for _, opt := range options {
+		out = append(out, run.Option(opt))
+	}
+	return out
 }
 
 func findMalformedFilenames(root string) error {
 	var malformedFilenames []string
 
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(root, func(path string, _ os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}

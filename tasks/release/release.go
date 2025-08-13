@@ -1,13 +1,15 @@
 package release
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
 
-	. "github.com/anchore/go-make" //nolint:stylecheck
+	. "github.com/anchore/go-make"
+	"github.com/anchore/go-make/binny"
+	"github.com/anchore/go-make/file"
+	"github.com/anchore/go-make/log"
 )
 
 const configName = ".goreleaser.yaml"
@@ -16,7 +18,7 @@ func Tasks() Task {
 	return Task{
 		Tasks: []Task{
 			ChangelogTask(),
-			SnapshotTask(),
+			SnapshotTasks(),
 			CIReleaseTask(),
 			WorkflowTask(),
 		},
@@ -25,11 +27,11 @@ func Tasks() Task {
 
 func CIReleaseTask() Task {
 	return Task{
-		Name: "ci-release",
-		Desc: "build and publish a release with goreleaser",
-		Deps: All("dependencies:quill", "dependencies:syft"),
+		Name:         "ci-release",
+		Description:  "build and publish a release with goreleaser",
+		Dependencies: List("release:dependencies"),
 		Run: func() {
-			EnsureFileExists(configName)
+			file.Require(configName)
 
 			failIfNotInCI()
 			ensureHeadHasTag()
@@ -37,39 +39,39 @@ func CIReleaseTask() Task {
 
 			Run(fmt.Sprintf(`goreleaser release --clean --snapshot --releasenotes %s`, changelogFile))
 		},
-		Tasks: []Task{quillInstallTask(), syftInstallTask()},
+		Tasks: []Task{quillInstallTask(), syftInstallTask(), {
+			Name:         "release:dependencies",
+			Description:  "ensure all release dependencies are installed",
+			Dependencies: List("dependencies:quill", "dependencies:syft"),
+		}},
 	}
 }
 
 func ensureHeadHasTag() {
-	var tagBuf bytes.Buffer
-	RunWithOptions("git tag --points-at HEAD", ExecOut(&tagBuf))
-
-	tags := strings.Split(strings.TrimSpace(tagBuf.String()), "\n")
+	tags := strings.Split(Run("git tag --points-at HEAD"), "\n")
 
 	for _, tag := range tags {
 		if strings.HasPrefix(tag, "v") {
-			Log("HEAD has a version tag: %s", tag)
+			log.Log("HEAD has a version tag: %s", tag)
 			return
 		}
 	}
 
-	Throw(errors.New("HEAD does not have a tag that starts with 'v'.")) //nolint:stylecheck
+	panic(errors.New("HEAD does not have a tag that starts with 'v'"))
 }
 
 func failIfNotInCI() {
 	if os.Getenv("CI") == "" {
-		Throw(errors.New("this task can only be run in CI"))
+		panic(errors.New("this task can only be run in CI"))
 	}
 }
 
 func quillInstallTask() Task {
 	return Task{
-		Name:  "dependencies:quill",
-		Quiet: true,
+		Name: "dependencies:quill",
 		Run: func() {
-			if IsBinnyManagedTool("quill") {
-				_ = BinnyInstall("quill")
+			if binny.IsManagedTool("quill") {
+				binny.Install("quill")
 			}
 		},
 	}
@@ -77,11 +79,10 @@ func quillInstallTask() Task {
 
 func syftInstallTask() Task {
 	return Task{
-		Name:  "dependencies:syft",
-		Quiet: true,
+		Name: "dependencies:syft",
 		Run: func() {
-			if IsBinnyManagedTool("syft") {
-				_ = BinnyInstall("syft")
+			if binny.IsManagedTool("syft") {
+				binny.Install("syft")
 			}
 		},
 	}

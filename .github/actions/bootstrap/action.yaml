@@ -1,19 +1,59 @@
 name: "Bootstrap"
 description: "Bootstrap all tools and dependencies"
 inputs:
+  go-version:
+    description: "Go version to install"
+  go-version-file:
+    description: "Go version file to use"
+    default: go.mod
+  cache-dependency-path:
+    description: "Setup Go cache dependency path"
+    default: |
+      go.sum
+      make/go.sum
   cache-key-prefix:
     description: "Prefix all cache keys with this value"
     required: true
-    default: "831180ac25"
+    default: "go-make"
 
 runs:
   using: "composite"
   steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
+      if: ${{ hashFiles('.git/') == '' }}
+      with:
+        persist-credentials: false
+
     - uses: actions/setup-go@v5
+      if: ${{ inputs.go-version != '' || inputs.go-version-file != '' }}
+      with:
+        go-version: ${{ inputs.go-version }}
+        go-version-file: ${{ !inputs.go-version && inputs.go-version-file || '' }}
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}
 
     - name: Restore tool cache
       id: tool-cache
       uses: actions/cache@v3
       with:
-        path: ${{ github.workspace }}/.tmp
-        key: ${{ inputs.cache-key-prefix }}-${{ runner.os }}-tool }}
+        path: ${{ github.workspace }}/.tool
+        key: ${{ inputs.cache-key-prefix }}-${{ runner.os }}-tool-${{ hashFiles('.binny.yaml') }}
+
+    - name: Build cache key for test fixtures
+      id: unit-fixtures
+      shell: bash # necessary to be explicit for Windows
+      run: |
+        echo "FIXTURES_FINGERPRINT=$(make fixtures:fingerprint)" >> "$GITHUB_OUTPUT"
+        {
+          echo 'FIXTURES_DIRECTORIES<<EOF'
+          echo "$(make fixtures:directories)"
+          echo EOF
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Restore test-fixture cache
+      id: unit-fixture-cache
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 #v4.2.3
+      if: ${{ steps.unit-fixtures.outputs.FIXTURES_DIRECTORIES }}
+      with:
+        path: |
+          ${{ steps.unit-fixtures.outputs.FIXTURES_DIRECTORIES }}
+        key: ${{ inputs.cache-key-prefix }}-${{ runner.os }}-unit-fixture-cache-${{ steps.unit-fixtures.outputs.FIXTURES_FINGERPRINT }}

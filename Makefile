@@ -1,8 +1,8 @@
 .PHONY: *
-.DEFAULT_GOAL: make-default
+.DEFAULT_GOAL: help
 
-make-default:
-	@go run -C make .
+help:
+	@go run -C make . help
 
 .PHONY: *
 .DEFAULT:

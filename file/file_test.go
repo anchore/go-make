@@ -1,4 +1,4 @@
-package gomake_test
+package file_test
 
 import (
 	"os"
@@ -6,10 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	. "github.com/anchore/go-make"
+	"github.com/anchore/go-make/file"
+	"github.com/anchore/go-make/require"
 )
 
-func Test_FindFile(t *testing.T) {
+func Test_FindParent(t *testing.T) {
 	tests := []struct {
 		file     string
 		expected string
@@ -33,13 +34,13 @@ func Test_FindFile(t *testing.T) {
 	}
 	testdataDir, _ := os.Getwd()
 	testdataDir = filepath.ToSlash(filepath.Join(testdataDir, "testdata")) + "/"
-	for _, test := range tests {
-		t.Run(test.file, func(t *testing.T) {
-			inDir(t, "testdata/some/nested/path", func() {
-				path := FindFile(test.file)
+	for _, tt := range tests {
+		t.Run(tt.file, func(t *testing.T) {
+			require.InDir(t, "testdata/some/nested/path", func() {
+				path := file.FindParent(file.Cwd(), tt.file)
 				path = filepath.ToSlash(path)
 				path = strings.TrimPrefix(path, testdataDir)
-				requireEqual(t, test.expected, path)
+				require.Equal(t, tt.expected, path)
 			})
 		})
 	}
