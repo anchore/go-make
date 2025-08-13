@@ -59,7 +59,7 @@ func Command(cmd string, opts ...Option) string {
 				WithLog(outStr))
 	}
 
-	return stdout.String()
+	return strings.TrimSpace(stdout.String())
 }
 
 // Args appends args to the command

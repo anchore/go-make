@@ -3,7 +3,6 @@ package release
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	. "github.com/anchore/go-make"
 	"github.com/anchore/go-make/binny"
@@ -39,7 +38,6 @@ func GenerateAndShowChangelog() (changelogFilePath, versionFilePath string) {
 	// gh auth status should fail the user is not authenticated
 	log.Debug(script.Run("gh auth status"))
 	ghAuthToken := script.Run("gh auth token")
-	ghAuthToken = strings.TrimSpace(ghAuthToken)
 	log.Debug("Auth token: %.10s...", ghAuthToken)
 
 	script.Run("chronicle -n --version-file", run.Args(versionFile), run.Write(changelogFile), run.Env("GITHUB_TOKEN", ghAuthToken))

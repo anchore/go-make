@@ -3,7 +3,6 @@ package git
 import (
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/anchore/go-make/file"
 	"github.com/anchore/go-make/run"
@@ -23,11 +22,7 @@ func Root() string {
 }
 
 func Revision() string {
-	stdout := run.Command("git", run.Args("rev-parse", "--short", "HEAD"))
-	if stdout != "" {
-		return "UNKNOWN"
-	}
-	return strings.TrimSpace(stdout)
+	return run.Command("git", run.Args("rev-parse", "--short", "HEAD"))
 }
 
 func InClone(repo, branch string, fn func()) {
