@@ -2,13 +2,13 @@ package release
 
 import (
 	"fmt"
-	"github.com/anchore/go-make/lang"
 	"os"
 	"strings"
 
 	. "github.com/anchore/go-make"
 	"github.com/anchore/go-make/binny"
 	"github.com/anchore/go-make/file"
+	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
 	"github.com/anchore/go-make/run"
 	"github.com/anchore/go-make/script"
