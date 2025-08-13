@@ -35,8 +35,9 @@ func ChangelogTask() Task {
 }
 
 func GenerateAndShowChangelog() (changelogFilePath, versionFilePath string) {
-	// gh auth status should fail the user is not authenticated
+	// gh auth status will fail the user is not authenticated
 	log.Debug(script.Run("gh auth status"))
+
 	ghAuthToken := script.Run("gh auth token")
 	log.Debug("Auth token: %.10s...", ghAuthToken)
 

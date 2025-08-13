@@ -6,7 +6,6 @@ import (
 
 	. "github.com/anchore/go-make"
 	"github.com/anchore/go-make/file"
-	"github.com/anchore/go-make/log"
 	"github.com/anchore/go-make/run"
 	"github.com/anchore/go-make/script"
 )
@@ -14,14 +13,14 @@ import (
 func GhReleaseTask() Task {
 	return Task{
 		Name:        "release",
-		Description: "creates a gh release",
+		Description: "creates a GitHub release",
 		Run: func() {
 			// get all up-to-date tags from the server
 			Run("git fetch --tags --prune --prune-tags")
 
 			changelogFile, versionFile := GenerateAndShowChangelog()
+
 			version := strings.TrimSpace(file.Read(versionFile))
-			log.Log("Creating release for version: %s", version)
 			if !regexp.MustCompile(`v\d+\.\d+\.\d+`).MatchString(version) {
 				panic("version file does not appear to be a valid semver")
 			}
