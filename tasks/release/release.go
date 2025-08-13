@@ -8,7 +8,6 @@ func Tasks() Task {
 	return Task{
 		Tasks: []Task{
 			ChangelogTask(),
-			WorkflowTask(),
 		},
 	}
 }

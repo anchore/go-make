@@ -20,6 +20,7 @@ func Tasks() Task {
 		Tasks: []Task{
 			SnapshotTasks(),
 			CIReleaseTask(),
+			release.WorkflowReleaseTask(),
 		},
 	}
 }

@@ -23,7 +23,7 @@ func GhReleaseTask() Task {
 				panic("version file does not appear to be a valid semver")
 			}
 
-			script.Confirm("Do you want to create a release for version '%s'? ", version)
+			script.Confirm("Do you want to create a release for version '%s'?", version)
 
 			Run("gh release create --latest --fail-on-no-commits",
 				run.Args(version, "--notes-file", changelogFile, "--title", version),

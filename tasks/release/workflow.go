@@ -22,7 +22,7 @@ const (
 	workflowsPath       = ".github/workflows"
 )
 
-func WorkflowTask() Task {
+func WorkflowReleaseTask() Task {
 	return Task{
 		Name:        "release",
 		Description: "trigger a release github actions workflow",

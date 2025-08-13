@@ -11,14 +11,13 @@ import (
 
 // Confirm prompts the user for a single keypress of y for yes or cancels
 func Confirm(format string, args ...any) {
-loop:
 	for {
 		log.Log(format+" [y/n]", args...)
 		var response string
 		lang.Return(fmt.Scan(&response))
 		switch strings.ToLower(response) {
 		case "y":
-			break loop
+			return // continue
 		case "n":
 			panic(fmt.Errorf("CANCELLED: "+format, args...))
 		default:
