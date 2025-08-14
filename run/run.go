@@ -73,6 +73,7 @@ func Args(args ...string) Option {
 // Write outputs stdout to a file
 func Write(path string) Option {
 	fh, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	defer lang.Close(fh, path)
 	lang.Throw(err)
 	return func(_ context.Context, cmd *exec.Cmd) error {
 		cmd.Stdout = TeeWriter(cmd.Stdout, fh)

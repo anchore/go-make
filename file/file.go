@@ -123,7 +123,9 @@ func Fingerprint(globs ...string) string {
 			continue
 		}
 		log.Debug("fingerprinting: %s", file)
-		_ = lang.Return(io.Copy(hasher, lang.Return(os.Open(file))))
+		f := lang.Return(os.Open(file))
+		defer lang.Close(f, file)
+		_ = lang.Return(io.Copy(hasher, f))
 	}
 	return fmt.Sprintf("%x", hasher.Sum(nil))
 }

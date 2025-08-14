@@ -11,6 +11,7 @@ import (
 
 func Sha256Hash(file string) string {
 	f := lang.Return(os.Open(file))
+	defer lang.Close(f, file)
 	sum := sha256.New()
 	_ = lang.Return(io.Copy(sum, f))
 	return fmt.Sprintf("%x", sum.Sum(nil))

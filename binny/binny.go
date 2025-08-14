@@ -130,6 +130,7 @@ func readBinnyYamlVersions() map[string]string {
 	if binnyConfig != "" {
 		cfg := map[string]any{}
 		f, err := os.Open(binnyConfig)
+		defer lang.Close(f, binnyConfig)
 		if err == nil {
 			d := yaml.NewDecoder(f)
 			err = d.Decode(&cfg)
@@ -160,7 +161,7 @@ func findBinnyVersion() string {
 		return ver
 	}
 	// TODO: pin to floating tag? (e.g. v0)
-	return "0.9.0"
+	return "v0.9.0"
 }
 
 func toString(v any) string {
