@@ -14,7 +14,7 @@ as needed during execution.
 ## Example
 
 ```golang
-// file: make/main.go
+// file: .make/main.go
 package main 
 
 import (
@@ -51,10 +51,23 @@ func main() {
 }
 ```
 
-See also: [the build definition in this repository](build/main.go) and 
+See also: [the build definition in this repository](.make/main.go) and 
 [script tests](script/testdata).
 
 ### Q & A
+
+**Q:** It's too verbose to type `go run -C .make .`
+
+**A:** Most modern `make` implementations seem to support the wildcard,
+so you can just run `make <task>` by copying [what we have in this repo](Makefile):
+```makefile
+.PHONY: *
+.DEFAULT:
+%:
+	@go run -C .make . $@
+```
+If that doesn't work for you, you can generate a Makefile with all the targets
+using the hidden `makefile` task. Or just use an alias.
 
 **Q:** I see something like: `make: Nothing to be done for 'test'`
 
@@ -63,7 +76,7 @@ Add an explicit `.PHONY` directive and make target to your `Makefile`, e.g:
 ```makefile
 .PHONY: test
 test:
-	@go run -C build . $@
+	@go run -C .make . $@
 ```
 
 **Q:** I have a `golangci-lint` linter rule: _no dot imports_
@@ -83,6 +96,11 @@ test:
                 - github.com/anchore/go-make/lang
 ```
 
+**Q:** Do I need to put my files in `.make`?
+
+**A:** No, we just do this as a convention. The only thing this affects is what you
+specify in your `Makefile`, e.g. `@go -C <dir>`
+
 **Q:** Why make this? Surely there are already build tools.
 
 **A:** Yes, there are plenty of build tools.
@@ -92,8 +110,7 @@ this seemed like a fairly simple solution to leverage the existing module system
 
 For example, we used [Task](https://github.com/go-task/task), which works great but leads to
 difficulties implementing functionality for Windows, since common *nix tools are not available,
-like `grep`. And at present doesn't offer a great way to share task definitions, though
-there appears to be something in the works.
+like `grep`, and at present doesn't offer an ideal way to share task definitions.
 
 It's perfectly fine to use additional tools to implement your own functionality,
 such as Task or [Bitfield script](https://github.com/bitfield/script) [*](https://bitfieldconsulting.com/posts/scripting).
