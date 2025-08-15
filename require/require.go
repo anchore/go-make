@@ -49,7 +49,7 @@ func Contains(t *testing.T, values any, value any) {
 func Equal[T comparable](t *testing.T, expected, actual T) {
 	t.Helper()
 	if expected != actual {
-		t.Errorf("not equal\nexpected: %v\n     got: %v", expected, actual)
+		t.Errorf("not equal\nexpected: \"%v\"\n     got: \"%v\"", expected, actual)
 	}
 }
 

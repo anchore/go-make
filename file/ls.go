@@ -19,20 +19,22 @@ func Ls(dir string) string {
 	buf := bytes.Buffer{}
 	for _, f := range entries {
 		s := lang.Return(os.Stat(filepath.Join(dir, f.Name())))
-		_, _ = fmt.Fprintf(&buf, "%v %8v %v\n", s.Mode(), humanizeBytes(s.Size()), f.Name())
+		_, _ = fmt.Fprintf(&buf, "%v %8v %v\n", s.Mode(), HumanizeBytes(s.Size()), f.Name())
 	}
 	return buf.String()
 }
 
 func LogWorkdir() {
 	if config.DebugEnabled {
-		for _, line := range strings.Split(Ls(Cwd()), "\n") {
+		cwd := Cwd()
+		log.Log("CWD: %s", cwd)
+		for _, line := range strings.Split(Ls(cwd), "\n") {
 			log.Log(line)
 		}
 	}
 }
 
-func humanizeBytes[T int | int64](size T) any {
+func HumanizeBytes[T int | int64](size T) any {
 	units := ""
 	value := size
 	switch {

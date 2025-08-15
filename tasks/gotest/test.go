@@ -2,6 +2,7 @@ package gotest
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -32,7 +33,7 @@ func Tasks(options ...Option) Task {
 			}
 			args = append(args, selectPackages(cfg.IncludeGlob, cfg.ExcludeGlob)...)
 
-			Run("go", run.Args(args...))
+			Run("go", run.Args(args...), run.Stdout(os.Stderr))
 
 			Log("Done running %s tests in %v", cfg.Name, time.Since(start))
 		},
