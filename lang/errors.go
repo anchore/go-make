@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/anchore/go-make/color"
+	"github.com/anchore/go-make/config"
 	"github.com/anchore/go-make/log"
 )
 
@@ -133,6 +134,9 @@ func stackTraceLines() []string {
 }
 
 func skipTraceLine(line string) bool {
+	if config.DebugEnabled {
+		return false
+	}
 	line = strings.TrimSpace(line)
 	return strings.HasPrefix(line, "panic(") ||
 		strings.HasPrefix(line, "runtime/") ||

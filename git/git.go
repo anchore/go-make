@@ -2,6 +2,7 @@ package git
 
 import (
 	"fmt"
+	"io"
 	"path/filepath"
 
 	"github.com/anchore/go-make/file"
@@ -25,10 +26,9 @@ func Revision() string {
 	return run.Command("git", run.Args("rev-parse", "--short", "HEAD"))
 }
 
-func InClone(repo, branch string, fn func()) {
+func InClone(repo, ref string, fn func()) {
 	file.InTempDir(func() {
-		run.Command("git", run.Args("clone", "--depth", "1", "--branch", branch, repo, "repo"))
-		file.Cd("repo")
+		run.Command("git", run.Args("clone", "--depth", "1", "--branch", ref, repo, "."), run.Stderr(io.Discard))
 		fn()
 	})
 }

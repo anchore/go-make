@@ -20,8 +20,9 @@ import (
 type Option func(context.Context, *exec.Cmd) error
 
 // Command a command: wait until completion, return stdout and discard Stderr unless an error occurs, in which case the entire
-// contents of stdout and stderr are returned as part of the error text. This function DOES NOT shell-split the command text
-// provided.
+// contents of stdout and stderr are returned as part of the error text.
+//
+// NOTE: This function DOES NOT shell-split the cmd
 func Command(cmd string, opts ...Option) string {
 	// by default, only capture output without duplicating it to logs
 	opts = append([]Option{func(_ context.Context, cmd *exec.Cmd) error {
@@ -85,7 +86,9 @@ func Write(path string) Option {
 func Quiet() Option {
 	return func(ctx context.Context, _ *exec.Cmd) error {
 		cfg, _ := ctx.Value(runConfig{}).(*runConfig)
-		cfg.quiet = true
+		if cfg != nil {
+			cfg.quiet = true
+		}
 		return nil
 	}
 }
@@ -118,6 +121,26 @@ func Stdin(in io.Reader) Option {
 func Env(key, val string) Option {
 	return func(_ context.Context, cmd *exec.Cmd) error {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, val))
+		return nil
+	}
+}
+
+// LDFlags adds an `-ldflags` argument, appending to other existing LDFlags
+func LDFlags(flags ...string) Option {
+	return func(_ context.Context, cmd *exec.Cmd) error {
+		for i, arg := range cmd.Args {
+			// append to existing ldflags arg
+			if arg == "-ldflags" {
+				if i+1 >= len(cmd.Args) {
+					cmd.Args = append(cmd.Args, "")
+				} else {
+					cmd.Args[i+1] += " "
+				}
+				cmd.Args[i+1] += strings.Join(flags, " ")
+				return nil
+			}
+		}
+		cmd.Args = append(cmd.Args, "-ldflags", strings.Join(flags, " "))
 		return nil
 	}
 }

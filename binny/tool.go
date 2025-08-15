@@ -10,7 +10,7 @@ import (
 )
 
 func InstallAll() {
-	run.Command("binny install -v")
+	run.Command("binny", run.Args("install", "-v"))
 }
 
 func ToolPath(toolName string) string {
