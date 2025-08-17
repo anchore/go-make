@@ -7,8 +7,38 @@ import (
 	"testing"
 
 	"github.com/anchore/go-make/file"
+	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/require"
 )
+
+func Test_Cwd(t *testing.T) {
+	tests := []struct {
+		name string
+		dir  string
+	}{
+		{
+			name: "current directory",
+			dir:  ".",
+		},
+		{
+			name: "other directory",
+			dir:  "testdata",
+		},
+	}
+
+	startDir := lang.Return(os.Getwd())
+	defer func() { require.NoError(t, os.Chdir(startDir)) }()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.InDir(t, tt.dir, func() {
+				expected := lang.Return(filepath.Abs(filepath.Join(startDir, tt.dir)))
+				got := lang.Return(filepath.Abs(file.Cwd()))
+				require.Equal(t, expected, got)
+			})
+		})
+	}
+}
 
 func Test_FindParent(t *testing.T) {
 	tests := []struct {
@@ -44,4 +74,29 @@ func Test_FindParent(t *testing.T) {
 			})
 		})
 	}
+}
+
+func Test_EnsureDir(t *testing.T) {
+	testDir := t.TempDir()
+
+	newDir := filepath.Join(testDir, "newdir")
+
+	require.True(t, !file.Exists(newDir))
+
+	file.EnsureDir(newDir)
+
+	require.True(t, file.Exists(newDir))
+
+	// existing dir, does nothing, no error
+	file.EnsureDir(newDir)
+
+	require.True(t, file.Exists(newDir))
+
+	newFile := filepath.Join(testDir, "newfile")
+	require.NoError(t, os.WriteFile(newFile, []byte("hello world"), 0o700))
+
+	// should panic if unable to create dir such as when a file exists
+	require.Error(t, lang.Catch(func() {
+		file.EnsureDir(newFile)
+	}))
 }

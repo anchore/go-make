@@ -2,6 +2,7 @@ package gotest
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -20,10 +21,9 @@ func Tasks(options ...Option) Task {
 	}
 
 	return Task{
-		Name:         cfg.Name,
-		Description:  fmt.Sprintf("run %s tests", cfg.Name),
-		Dependencies: cfg.Dependencies,
-		RunsOn:       List("test"),
+		Name:        cfg.Name,
+		Description: fmt.Sprintf("run %s tests", cfg.Name),
+		RunsOn:      List("test"),
 		Run: func() {
 			start := time.Now()
 			args := List("test")
@@ -32,7 +32,7 @@ func Tasks(options ...Option) Task {
 			}
 			args = append(args, selectPackages(cfg.IncludeGlob, cfg.ExcludeGlob)...)
 
-			Run("go", run.Args(args...))
+			Run("go", run.Args(args...), run.Stdout(os.Stderr))
 
 			Log("Done running %s tests in %v", cfg.Name, time.Since(start))
 		},
@@ -40,11 +40,10 @@ func Tasks(options ...Option) Task {
 }
 
 type Config struct {
-	Name         string
-	IncludeGlob  string
-	ExcludeGlob  string
-	Dependencies []string
-	Verbose      bool
+	Name        string
+	IncludeGlob string
+	ExcludeGlob string
+	Verbose     bool
 }
 
 func defaultConfig() Config {
@@ -56,31 +55,25 @@ func defaultConfig() Config {
 
 type Option func(*Config)
 
-func With(cfg Config) Option {
+func Name(name string) Option {
 	return func(c *Config) {
-		*c = cfg
+		c.Name = name
 	}
 }
 
-func WithDependencies(dependencies ...string) Option {
-	return func(c *Config) {
-		c.Dependencies = dependencies
-	}
-}
-
-func WithInclude(packages string) Option {
+func IncludeGlob(packages string) Option {
 	return func(c *Config) {
 		c.IncludeGlob = packages
 	}
 }
 
-func WithExclude(packages string) Option {
+func ExcludeGlob(packages string) Option {
 	return func(c *Config) {
 		c.ExcludeGlob = packages
 	}
 }
 
-func WithVerbose() Option {
+func Verbose() Option {
 	return func(c *Config) {
 		c.Verbose = true
 	}

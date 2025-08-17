@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/anchore/go-make/binny"
 	"github.com/anchore/go-make/color"
 	"github.com/anchore/go-make/config"
 	"github.com/anchore/go-make/file"
@@ -85,6 +86,22 @@ func Makefile(tasks ...Task) {
 			RunsOn: lang.List("dependencies:update"),
 			Run: func() {
 				Run("binny update")
+			},
+		},
+		&Task{
+			Name: "binny:install",
+			Run: func() {
+				binny.InstallAll()
+			},
+		},
+		&Task{
+			Name: "dos2unix",
+			Run: func() {
+				files := "**/*.{go,sh,md,yml,yaml,js,json,txt}"
+				if len(os.Args) > 2 {
+					files = os.Args[2]
+				}
+				file.DosToUnix(files)
 			},
 		},
 		&Task{
