@@ -40,6 +40,29 @@ func Test_Cwd(t *testing.T) {
 	}
 }
 
+func Test_Copy(t *testing.T) {
+	tempDir := t.TempDir()
+	srcFile := filepath.Join(tempDir, "srcfile.txt")
+	require.NoError(t, os.WriteFile(srcFile, []byte("hello world"), 0o742))
+	srcPerms := lang.Return(os.Stat(srcFile)).Mode()
+	dstFile := filepath.Join(tempDir, "tmpdir", "dstfile.txt")
+
+	file.Copy(srcFile, dstFile)
+
+	require.Equal(t, "hello world", file.Read(dstFile))
+	perms := lang.Return(os.Stat(dstFile)).Mode()
+	require.Equal(t, srcPerms, perms.Perm())
+}
+
+func Test_IsRegular(t *testing.T) {
+	tempDir := t.TempDir()
+	require.True(t, !file.IsRegular(tempDir))
+
+	srcFile := filepath.Join(tempDir, "srcfile.txt")
+	require.NoError(t, os.WriteFile(srcFile, []byte("hello world"), 0o742))
+	require.True(t, file.IsRegular(srcFile))
+}
+
 func Test_FindParent(t *testing.T) {
 	tests := []struct {
 		file     string

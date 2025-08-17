@@ -90,7 +90,8 @@ func Install(cmd string) string {
 		if runtime.GOOS == "windows" && nonExe != toolPath && file.Exists(nonExe) {
 			log.Error(lang.Catch(func() {
 				// older verions of binny do not create .exe files on windows
-				lang.Throw(os.Symlink(nonExe, toolPath))
+				// TODO: fix binny to handle windows executables properly, see the fix-freebsd branch
+				file.Copy(nonExe, toolPath)
 			}))
 		}
 		log.Log("Binny installed: %v at %v", cmd, toolPath)
@@ -176,8 +177,8 @@ func isVersion(versionRequest, versionToCheck string) bool {
 		return false // empty versions are considered unknown
 	}
 	for _, ptr := range []*string{&versionRequest, &versionToCheck} {
-		*ptr = strings.TrimPrefix(*ptr, "v")
 		*ptr = strings.TrimSpace(*ptr)
+		*ptr = strings.TrimPrefix(*ptr, "v")
 	}
 	remover := regexp.MustCompile(`^[-._]`)
 	splitter := regexp.MustCompile(`((^|[-._+~a-zA-Z])[a-zA-Z]*\d+)`)
@@ -216,7 +217,7 @@ func BuildFromGoSource(file string, module, entrypoint, version string, opts ...
 	if version == "" {
 		panic(fmt.Errorf("no version specified for: %s %s %s", file, module, entrypoint))
 	}
-	log.Log("Building: %s", module)
+	log.Log("Building: %s@%s entrypoint: %s", module, version, entrypoint)
 	git.InClone("https://"+module, version, func() {
 		// go build <options> -o file <entrypoint>
 		opts = append([]run.Option{run.Args("build"), run.Stderr(io.Discard)}, opts...)

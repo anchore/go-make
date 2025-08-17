@@ -29,6 +29,14 @@ func Cwd() string {
 	return lang.Return(os.Getwd())
 }
 
+// Copy copies the source file to the destination file, preserving permissions
+func Copy(src, dst string) {
+	perms := lang.Return(os.Stat(src)).Mode()
+	contents := lang.Return(os.ReadFile(src))
+	EnsureDir(filepath.Dir(dst))
+	lang.Throw(os.WriteFile(dst, contents, perms))
+}
+
 // Delete removes the given file or directory, first verifying it is a subdirectory of RootDir
 func Delete(path string) {
 	dirToRm := lang.Return(filepath.Abs(path))

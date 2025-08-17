@@ -93,6 +93,11 @@ func Test_isVersion(t *testing.T) {
 			want:     true,
 		},
 		{
+			version1: " v0.9.0 ",
+			version2: "0.9.0",
+			want:     true,
+		},
+		{
 			version1: "v0.8.0",
 			version2: "v0.9.0",
 			want:     false,
