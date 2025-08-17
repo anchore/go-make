@@ -10,7 +10,9 @@ import (
 	"github.com/bmatcuk/doublestar/v4"
 
 	. "github.com/anchore/go-make"
+	"github.com/anchore/go-make/config"
 	"github.com/anchore/go-make/file"
+	"github.com/anchore/go-make/log"
 	"github.com/anchore/go-make/run"
 )
 
@@ -32,9 +34,34 @@ func Tasks(options ...Option) Task {
 			}
 			args = append(args, selectPackages(cfg.IncludeGlob, cfg.ExcludeGlob)...)
 
+			coverageFile := ""
+			if cfg.Coverage {
+				coverageDir, err := os.MkdirTemp(config.TmpDir, "cover-dir-")
+				if err == nil {
+					defer func() {
+						log.Error(os.RemoveAll(coverageDir))
+					}()
+					coverageDir, err = filepath.Abs(coverageDir)
+					if err == nil {
+						coverageFile = filepath.Join(coverageDir, "cover.out")
+						args = append(args, "-coverprofile", coverageFile)
+						args = append(args, "-covermode=atomic", "-coverpkg=./...", "-tags=coverage")
+					}
+				}
+			}
+
+			if cfg.Race {
+				args = append(args, "-race")
+			}
+
 			Run("go", run.Args(args...), run.Stdout(os.Stderr))
 
 			Log("Done running %s tests in %v", cfg.Name, time.Since(start))
+
+			if coverageFile != "" {
+				Log(" -------------- Coverage Report -------------- ")
+				Run("go tool cover", run.Args("-func", coverageFile), run.Stdout(os.Stderr))
+			}
 		},
 	}
 }
@@ -44,12 +71,16 @@ type Config struct {
 	IncludeGlob string
 	ExcludeGlob string
 	Verbose     bool
+	Coverage    bool
+	Race        bool
 }
 
 func defaultConfig() Config {
 	return Config{
 		Name:        "unit",
 		IncludeGlob: "./...",
+		Coverage:    true,
+		Race:        true,
 	}
 }
 
