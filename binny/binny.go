@@ -1,19 +1,14 @@
 package binny
 
 import (
-	"archive/tar"
-	"archive/zip"
 	"bytes"
-	"compress/gzip"
-	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/goccy/go-yaml"
@@ -22,12 +17,13 @@ import (
 	"github.com/anchore/go-make/fetch"
 	"github.com/anchore/go-make/file"
 	"github.com/anchore/go-make/git"
-	"github.com/anchore/go-make/gomod"
 	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
 	"github.com/anchore/go-make/run"
 	"github.com/anchore/go-make/template"
 )
+
+const CMD = "binny"
 
 var (
 	binnyManaged = readBinnyYamlVersions()
@@ -60,48 +56,61 @@ func ManagedToolPath(cmd string) string {
 
 // Install installs the named executable and returns an absolute path to it
 func Install(cmd string) string {
-	binnyPath := ToolPath("binny")
-	if !file.Exists(binnyPath) {
-		installBinny(binnyPath)
-		if IsManagedTool("binny") {
-			Install("binny") // this will cause binny to update .tool/.binny.state.json with itself as installed
+	binnyPath := ToolPath(CMD)
+	if installed[CMD] != binnyPath {
+		if !file.Exists(binnyPath) {
+			installBinny(binnyPath)
+		} else if cmd != CMD && IsManagedTool(CMD) {
+			// we manage the binny updates here, because binny is not released for all platforms,
+			// and we may have to build from source
+			binnyVersion := run.Command(binnyPath, run.Args("--version"), run.Quiet())
+			binnyVersion = strings.TrimPrefix(binnyVersion, CMD)
+			if !IsManagedTool(CMD) || !isVersion(binnyVersion, binnyManaged[CMD]) {
+				// if binny needs to update, use our own install procedure since we may be on an unsupported platform
+				installBinny(binnyPath)
+			}
 		}
-	} else if cmd != "binny" && IsManagedTool("binny") {
-		// if binny itself is managed, install it to update itself
-		// using ManagedToolPath will only execute binny managing its own install once, in case it needs to update
-		ManagedToolPath("binny")
+		installed[CMD] = binnyPath
 	}
 
-	toolDir := lang.Return(filepath.Abs(template.Render(config.ToolDir)))
+	toolPath := ToolPath(cmd)
+	toolDir := filepath.Dir(toolPath)
 
 	out := bytes.Buffer{}
 	run.Command(binnyPath, run.Args("install", cmd),
 		run.Env("BINNY_LOG_LEVEL", "info"),
 		run.Env("BINNY_ROOT", toolDir),
-		run.Stdout(&out),
-		run.Stderr(&out),
 		run.Quiet(),
+		run.Stderr(&out),
 	)
 
 	if !strings.Contains(out.String(), "already installed") {
-		log.Log("Binny installed: %v", cmd)
+		// check if binny has given us an executable without .exe on windows and copy it, if so
+		nonExe := filepath.Join(toolDir, cmd)
+		if runtime.GOOS == "windows" && nonExe != toolPath && file.Exists(nonExe) {
+			log.Error(lang.Catch(func() {
+				// older verions of binny do not create .exe files on windows
+				// TODO: fix binny to handle windows executables properly, see the fix-freebsd branch
+				file.Copy(nonExe, toolPath)
+			}))
+		}
+		log.Log("Binny installed: %v at %v", cmd, toolPath)
+		log.Debug("Binny output: %v", out.String())
 	}
 
-	return filepath.Join(toolDir, cmd)
+	return toolPath
 }
 
 func installBinny(binnyPath string) {
-	installed["binny"] = binnyPath
-
 	version := findBinnyVersion()
 
-	err := downloadPrebuiltBinary(binnyPath, downloadSpec{
-		url: "https://github.com/anchore/binny/releases/download/v{{.version}}/binny_{{.version}}_{{.os}}_{{.arch}}.{{.ext}}",
-		args: map[string]string{
+	err := fetch.BinaryRelease(binnyPath, fetch.ReleaseSpec{
+		URL: "https://github.com/anchore/binny/releases/download/v{{.version}}/binny_{{.version}}_{{.os}}_{{.arch}}.{{.ext}}",
+		Args: map[string]string{
 			"ext":     "tar.gz",
-			"version": version,
+			"version": strings.TrimPrefix(version, "v"),
 		},
-		platform: map[string]map[string]string{
+		Platform: map[string]map[string]string{
 			"windows": {
 				"ext": "zip",
 			},
@@ -116,38 +125,35 @@ func installBinny(binnyPath string) {
 			"github.com/anchore/binny",
 			"cmd/binny",
 			version,
-			LDFlags("-w",
+			run.LDFlags("-w",
 				"-s",
 				"-extldflags '-static'",
-				"-X main.version="+gomod.GoDepVersion("github.com/anchore/binny")))
+				"-X main.version="+version))
 	}
+
+	installed["binny"] = binnyPath
 }
 
-//nolint:gocognit
 func readBinnyYamlVersions() map[string]string {
 	out := map[string]string{}
-	binnyConfig := file.FindParent(git.Root(), ".binny.yaml")
+	binnyConfig := file.FindParent(template.Render(config.RootDir), ".binny.yaml")
 	if binnyConfig != "" {
 		cfg := map[string]any{}
-		f, err := os.Open(binnyConfig)
+		f := lang.Return(os.Open(binnyConfig))
 		defer lang.Close(f, binnyConfig)
-		if err == nil {
-			d := yaml.NewDecoder(f)
-			err = d.Decode(&cfg)
-			if err == nil {
-				tools := cfg["tools"]
-				if tools, ok := tools.([]any); ok {
-					for _, tool := range tools {
-						if m, ok := tool.(map[string]any); ok {
-							version := m["version"]
-							if v, ok := version.(map[string]any); ok {
-								if want, ok := v["want"].(string); ok {
-									version = want
-								}
-							}
-							out[toString(m["name"])] = regexp.MustCompile("^v").ReplaceAllString(toString(version), "")
+		d := yaml.NewDecoder(f)
+		lang.Throw(d.Decode(&cfg))
+		tools := cfg["tools"]
+		if tools, ok := tools.([]any); ok {
+			for _, tool := range tools {
+				if m, ok := tool.(map[string]any); ok {
+					version := m["version"]
+					if v, ok := version.(map[string]any); ok {
+						if want, ok := v["want"].(string); ok {
+							version = want
 						}
 					}
+					out[toString(m["name"])] = toString(version)
 				}
 			}
 		}
@@ -164,133 +170,58 @@ func findBinnyVersion() string {
 	return "v0.9.0"
 }
 
+// isVersion indicates the versionRequest is satisfied
+// by the versionToCheck
+func isVersion(versionRequest, versionToCheck string) bool {
+	if versionRequest == "" || versionToCheck == "" {
+		return false // empty versions are considered unknown
+	}
+	for _, ptr := range []*string{&versionRequest, &versionToCheck} {
+		*ptr = strings.TrimSpace(*ptr)
+		*ptr = strings.TrimPrefix(*ptr, "v")
+	}
+	remover := regexp.MustCompile(`^[-._]`)
+	splitter := regexp.MustCompile(`((^|[-._+~a-zA-Z])[a-zA-Z]*\d+)`)
+	parts1 := splitter.FindAllString(versionRequest, -1)
+	parts2 := splitter.FindAllString(versionToCheck, -1)
+	for i, part := range parts1 {
+		part = remover.ReplaceAllString(part, "")
+		if i <= len(parts2) {
+			part2 := remover.ReplaceAllString(parts2[i], "")
+			int1, err := strconv.Atoi(part)
+			if err == nil {
+				var int2 int
+				int2, err = strconv.Atoi(part2)
+				if err == nil {
+					if int1 != int2 {
+						return false
+					}
+					continue // equal
+				}
+			}
+			// fall back to a string comparison
+			if part != part2 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func toString(v any) string {
 	s, _ := v.(string)
 	return s
 }
 
-func downloadPrebuiltBinary(toolPath string, spec downloadSpec) error {
-	tplArgs := spec.currentArgs()
-	url := template.Render(spec.url, tplArgs)
-
-	log.Log("Downloading: %v", url)
-
-	buf := bytes.Buffer{}
-	_, code, status := fetch.Fetch(url, fetch.Writer(&buf))
-	contents := buf.Bytes()
-	if code > 300 || len(contents) == 0 {
-		return fmt.Errorf("error downloading %v: http %v %v", url, code, status)
-	}
-	contents = getArchiveFileContents(contents, filepath.Base(toolPath))
-	if contents == nil {
-		return fmt.Errorf("unable to read archive from downloading %v: http %v %v", url, code, status)
-	}
-	dir := filepath.Dir(toolPath)
-	if !file.Exists(dir) {
-		lang.Throw(os.MkdirAll(dir, 0o700|os.ModeDir))
-	}
-	return os.WriteFile(toolPath, contents, 0o500) //nolint:gosec // needs read + execute permissions
-}
-
-func getArchiveFileContents(archive []byte, file string) []byte {
-	var errs []error
-
-	contents, err := getZipArchiveFileContents(archive, file)
-	if err == nil && len(contents) > 0 {
-		return contents
-	}
-	errs = append(errs, err)
-
-	contents, err = getTarGzArchiveFileContents(archive, file)
-	if err == nil && len(contents) > 0 {
-		return contents
-	}
-	errs = append(errs, err)
-
-	panic(fmt.Errorf("unable to read archive after attempting readers: %w", errors.Join(errs...)))
-}
-
-func getZipArchiveFileContents(archive []byte, file string) ([]byte, error) {
-	zipReader, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive)))
-	if err != nil {
-		return nil, err
-	}
-	f, err := zipReader.Open(file)
-	if err != nil {
-		return nil, err
-	}
-	contents, err := io.ReadAll(f)
-	if err != nil {
-		return nil, err
-	}
-	return contents, nil
-}
-
-func getTarGzArchiveFileContents(archive []byte, file string) ([]byte, error) {
-	gzipReader, err := gzip.NewReader(bytes.NewReader(archive))
-	if err == nil && gzipReader != nil {
-		t := tar.NewReader(gzipReader)
-		for {
-			hdr, err := t.Next()
-			if err != nil {
-				return nil, err
-			}
-			if hdr.Name == file {
-				const GB = 1024 * 1024 * 1024
-				if hdr.Size > 2*GB {
-					return nil, fmt.Errorf("refusing to extract file %v larger than 2 GB, declared size: %v", file, hdr.Size)
-				}
-				return io.ReadAll(t)
-			}
-		}
-	}
-	return nil, fmt.Errorf("file not found: %v", file)
-}
-
-func LDFlags(flags ...string) run.Option {
-	return func(_ context.Context, cmd *exec.Cmd) error {
-		for i, arg := range cmd.Args {
-			// append to existing ldflags arg
-			if arg == "-ldflags" {
-				if i+1 >= len(cmd.Args) {
-					cmd.Args = append(cmd.Args, "")
-				} else {
-					cmd.Args[i+1] += " "
-				}
-				cmd.Args[i+1] += strings.Join(flags, " ")
-				return nil
-			}
-		}
-		cmd.Args = append(cmd.Args, "-ldflags", strings.Join(flags, " "))
-		return nil
-	}
-}
-
 func BuildFromGoSource(file string, module, entrypoint, version string, opts ...run.Option) {
-	log.Log("Building: %s", module)
+	if version == "" {
+		panic(fmt.Errorf("no version specified for: %s %s %s", file, module, entrypoint))
+	}
+	log.Log("Building: %s@%s entrypoint: %s", module, version, entrypoint)
 	git.InClone("https://"+module, version, func() {
-		run.Command("go build", append(opts, run.Args("-o", file, "./"+entrypoint))...)
+		// go build <options> -o file <entrypoint>
+		opts = append([]run.Option{run.Args("build"), run.Stderr(io.Discard)}, opts...)
+		opts = append(opts, run.Args("-o", file, "./"+entrypoint))
+		run.Command("go", opts...)
 	})
-}
-
-type downloadSpec struct {
-	url      string
-	args     map[string]string
-	platform map[string]map[string]string
-}
-
-func (d downloadSpec) currentArgs() map[string]any {
-	out := map[string]any{
-		"os":   runtime.GOOS,
-		"arch": runtime.GOARCH,
-	}
-	for k, v := range d.args {
-		out[k] = v
-	}
-	if d.platform != nil {
-		for k, v := range d.platform[runtime.GOOS] {
-			out[k] = v
-		}
-	}
-	return out
 }

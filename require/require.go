@@ -19,6 +19,24 @@ func InDir(t *testing.T, dir string, fn func()) {
 	fn()
 }
 
+func True(t *testing.T, check bool) {
+	t.Helper()
+	if !check {
+		t.Errorf("expected true value")
+	}
+}
+
+type ValidationError func(t *testing.T, err error)
+
+func (v ValidationError) Validate(t *testing.T, err error) {
+	t.Helper()
+	if v == nil {
+		NoError(t, err)
+	} else {
+		v(t, err)
+	}
+}
+
 func Error(t *testing.T, err error) {
 	t.Helper()
 	if err == nil {
@@ -49,7 +67,7 @@ func Contains(t *testing.T, values any, value any) {
 func Equal[T comparable](t *testing.T, expected, actual T) {
 	t.Helper()
 	if expected != actual {
-		t.Errorf("not equal\nexpected: %v\n     got: %v", expected, actual)
+		t.Errorf("not equal\nexpected: \"%v\"\n     got: \"%v\"", expected, actual)
 	}
 }
 
@@ -70,4 +88,13 @@ func EqualElements[T comparable](t *testing.T, expected, actual []T) {
 			t.Errorf("not equal\nexpected: %v in idx %v %v\n     got: %v in %v", expected[i], i, expected, actual[i], actual)
 		}
 	}
+}
+
+func SetAndRestore[T any](t *testing.T, ptrToVar *T, newValue T) {
+	t.Helper()
+	origValue := *ptrToVar
+	t.Cleanup(func() {
+		*ptrToVar = origValue
+	})
+	*ptrToVar = newValue
 }

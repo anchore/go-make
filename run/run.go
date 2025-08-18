@@ -19,9 +19,9 @@ import (
 // Option is used to alter the command used in Exec calls
 type Option func(context.Context, *exec.Cmd) error
 
-// Command a command: wait until completion, return stdout and discard Stderr unless an error occurs, in which case the entire
-// contents of stdout and stderr are returned as part of the error text. This function DOES NOT shell-split the command text
-// provided.
+// Command runs a command, waits until completion, and returns stdout.
+// The first argument is the path to the binary and DOES NOT shell-split.
+// When not captured, stderr is output to os.Stderr and returned as part of the error text.
 func Command(cmd string, opts ...Option) string {
 	// by default, only capture output without duplicating it to logs
 	opts = append([]Option{func(_ context.Context, cmd *exec.Cmd) error {
@@ -34,7 +34,10 @@ func Command(cmd string, opts ...Option) string {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	opts = append(opts, func(_ context.Context, cmd *exec.Cmd) error {
-		cmd.Stdout = TeeWriter(cmd.Stdout, &stdout)
+		// if we are not outputting Stdout, capture and return it
+		if cmd.Stdout == io.Discard {
+			cmd.Stdout = &stdout
+		}
 		// if the user isn't capturing stderr, we print to stderr by default and don't need to duplicate this in errors
 		if cmd.Stderr != os.Stderr {
 			cmd.Stderr = TeeWriter(cmd.Stderr, &stderr)
@@ -44,19 +47,17 @@ func Command(cmd string, opts ...Option) string {
 
 	exitCode, err := runCommand(cmd, opts...)
 	if err != nil {
-		outStr := ""
+		fullStdOut := ""
 		if stdout.Len() > 0 {
-			outStr = "\n\n" + stdout.String()
-		} else {
-			outStr = "<no output>"
+			fullStdOut = "\nSTDOUT:\n" + stdout.String()
 		}
 		if stderr.Len() > 0 {
-			outStr += "\nSTDERR:\n" + stderr.String()
+			fullStdOut += "\nSTDERR:\n" + stderr.String()
 		}
 		panic(
 			lang.NewStackTraceError(fmt.Errorf("error executing: '%s %s': %w", cmd, printArgs(opts), err)).
 				WithExitCode(exitCode).
-				WithLog(outStr))
+				WithLog(fullStdOut))
 	}
 
 	return strings.TrimSpace(stdout.String())
@@ -83,9 +84,14 @@ func Write(path string) Option {
 
 // Quiet logs at Debug level instead of Log level
 func Quiet() Option {
-	return func(ctx context.Context, _ *exec.Cmd) error {
+	return func(ctx context.Context, cmd *exec.Cmd) error {
+		if cmd.Stderr == os.Stderr {
+			cmd.Stderr = io.Discard
+		}
 		cfg, _ := ctx.Value(runConfig{}).(*runConfig)
-		cfg.quiet = true
+		if cfg != nil {
+			cfg.quiet = true
+		}
 		return nil
 	}
 }
@@ -122,19 +128,35 @@ func Env(key, val string) Option {
 	}
 }
 
-// Cancel invokes a cancel call on all active commands
-func Cancel() {
-	config.Cancel()
+// LDFlags adds an `-ldflags` argument, appending to other existing LDFlags
+func LDFlags(flags ...string) Option {
+	return func(_ context.Context, cmd *exec.Cmd) error {
+		for i, arg := range cmd.Args {
+			// append to existing ldflags arg
+			if arg == "-ldflags" {
+				if i+1 >= len(cmd.Args) {
+					cmd.Args = append(cmd.Args, "")
+				} else {
+					cmd.Args[i+1] += " "
+				}
+				cmd.Args[i+1] += strings.Join(flags, " ")
+				return nil
+			}
+		}
+		cmd.Args = append(cmd.Args, "-ldflags", strings.Join(flags, " "))
+		return nil
+	}
 }
 
 // runCommand executes the given command, returning any error information
 func runCommand(cmd string, opts ...Option) (int, error) {
 	// create the command, this will look it up based on path:
 	c := exec.CommandContext(config.Context, cmd)
+
 	env := os.Environ()
 	var dropped []string
 	for i := 0; i < len(env); i++ {
-		nameValue := strings.Split(env[i], "=")
+		nameValue := strings.SplitN(env[i], "=", 2)
 		if skipEnvVar(nameValue[0]) {
 			dropped = append(dropped, nameValue[0])
 			continue
@@ -144,7 +166,7 @@ func runCommand(cmd string, opts ...Option) (int, error) {
 	}
 
 	for _, e := range dropped {
-		log.Debug(color.Grey("dropped environment entry: %v", e))
+		log.Trace(color.Grey("dropped environment entry: %v", e))
 	}
 
 	cfg := runConfig{}
@@ -167,13 +189,10 @@ func runCommand(cmd string, opts ...Option) (int, error) {
 	logFunc("$ %v %v", displayPath(cmd), strings.Join(args, " "))
 
 	// print out c.Env -- GOROOT vs GOBIN
-	log.Debug("ENV: %v", c.Env)
+	log.Trace("ENV: %v", c.Env)
 
 	// execute
-	err := c.Start()
-	if err == nil {
-		err = c.Wait()
-	}
+	err := c.Run()
 	if err != nil || (c.ProcessState != nil && c.ProcessState.ExitCode() > 0) {
 		return c.ProcessState.ExitCode(), err
 	}

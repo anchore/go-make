@@ -29,6 +29,14 @@ func Cwd() string {
 	return lang.Return(os.Getwd())
 }
 
+// Copy copies the source file to the destination file, preserving permissions
+func Copy(src, dst string) {
+	perms := lang.Return(os.Stat(src)).Mode()
+	contents := lang.Return(os.ReadFile(src))
+	EnsureDir(filepath.Dir(dst))
+	lang.Throw(os.WriteFile(dst, contents, perms))
+}
+
 // Delete removes the given file or directory, first verifying it is a subdirectory of RootDir
 func Delete(path string) {
 	dirToRm := lang.Return(filepath.Abs(path))
@@ -119,15 +127,16 @@ func Fingerprint(globs ...string) string {
 	hasher := md5.New() //nolint: gosec
 	for _, file := range files {
 		if IsDir(file) {
-			log.Debug("fingerprinting: %s", file)
+			log.Trace("fingerprinting: %s", file)
 			continue
 		}
-		log.Debug("fingerprinting: %s", file)
-		f := lang.Return(os.Open(file))
-		defer lang.Close(f, file)
-		_ = lang.Return(io.Copy(hasher, f))
+		log.Trace("fingerprinting: %s", file)
+		streamFile(file, hasher)
 	}
-	return fmt.Sprintf("%x", hasher.Sum(nil))
+
+	fingerprint := fmt.Sprintf("%x", hasher.Sum(nil))
+	log.Debug("fingerprinted globs %v: %s", globs, fingerprint)
+	return fingerprint
 }
 
 // Require panics if the provided file does not exist
@@ -135,15 +144,6 @@ func Require(file string) {
 	if !Exists(file) {
 		panic(fmt.Errorf("file does not exist: %s", file))
 	}
-}
-
-// Find finds the first matching file given a glob expression in the CWD
-func Find(glob string) string {
-	matches := FindAll(glob)
-	if len(matches) > 0 {
-		return matches[0]
-	}
-	return ""
 }
 
 // FindAll finds all matching files given a glob expression
@@ -186,4 +186,10 @@ func Write(path, contents string) {
 // JoinPaths joins paths together using an OS-appropriate separator
 func JoinPaths(paths ...string) string {
 	return filepath.Join(paths...)
+}
+
+func streamFile(file string, writer io.Writer) {
+	f := lang.Return(os.Open(file))
+	defer lang.Close(f, file)
+	_ = lang.Return(io.Copy(writer, f))
 }
