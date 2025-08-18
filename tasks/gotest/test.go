@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -61,8 +62,20 @@ func Tasks(options ...Option) Task {
 			Log("Done running %s tests in %v", cfg.Name, time.Since(start))
 
 			if coverageFile != "" && cfg.CoverageFile == "" {
-				Log(" -------------- Coverage Report -------------- ")
-				Run("go tool cover", run.Args("-func", coverageFile), run.Stdout(os.Stderr))
+				report := Run("go tool cover", run.Args("-func", coverageFile), run.Quiet())
+				if cfg.Verbose {
+					Log(" -------------- Coverage Report -------------- ")
+					Log(report)
+				} else {
+					coverage := regexp.MustCompile(`total:[^\n%]+?(\d+\.\d+)%`).FindStringSubmatch(report)
+					if len(coverage) > 1 {
+						Log("Coverage: %s%%", coverage[1])
+					} else {
+						Log(" -------------- Coverage Report -------------- ")
+						log.Error(fmt.Errorf("unable to find coverage percentage in report"))
+						Log(report)
+					}
+				}
 			}
 		},
 	}
