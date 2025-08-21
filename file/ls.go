@@ -25,12 +25,13 @@ func Ls(dir string) string {
 }
 
 func LogWorkdir() {
-	if config.DebugEnabled {
-		cwd := Cwd()
-		log.Log("CWD: %s", cwd)
-		for _, line := range strings.Split(Ls(cwd), "\n") {
-			log.Log(line)
-		}
+	if !config.Debug {
+		return
+	}
+	cwd := Cwd()
+	log.Log("CWD: %s", cwd)
+	for _, line := range strings.Split(Ls(cwd), "\n") {
+		log.Log(line)
 	}
 }
 

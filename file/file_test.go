@@ -31,7 +31,7 @@ func Test_Cwd(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.InDir(t, tt.dir, func() {
+			file.InDir(tt.dir, func() {
 				expected := lang.Return(filepath.Abs(filepath.Join(startDir, tt.dir)))
 				got := lang.Return(filepath.Abs(file.Cwd()))
 				require.Equal(t, expected, got)
@@ -89,7 +89,7 @@ func Test_FindParent(t *testing.T) {
 	testdataDir = filepath.ToSlash(filepath.Join(testdataDir, "testdata")) + "/"
 	for _, tt := range tests {
 		t.Run(tt.file, func(t *testing.T) {
-			require.InDir(t, "testdata/some/nested/path", func() {
+			file.InDir("testdata/some/nested/path", func() {
 				path := file.FindParent(file.Cwd(), tt.file)
 				path = filepath.ToSlash(path)
 				path = strings.TrimPrefix(path, testdataDir)

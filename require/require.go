@@ -1,22 +1,20 @@
 package require
 
 import (
-	"os"
-	"path/filepath"
+	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
 )
 
-func InDir(t *testing.T, dir string, fn func()) {
+func Test(t *testing.T) {
 	t.Helper()
-	cwd, err := os.Getwd()
-	NoError(t, err)
-	NoError(t, os.Chdir(filepath.Join(cwd, filepath.ToSlash(dir))))
 	defer func() {
-		NoError(t, os.Chdir(cwd))
+		if r := recover(); r != nil {
+			t.Errorf("failed due: %v", r)
+		}
 	}()
-	fn()
 }
 
 func True(t *testing.T, check bool) {
@@ -64,11 +62,20 @@ func Contains(t *testing.T, values any, value any) {
 	t.Errorf("error: %v not contained in %v", value, values)
 }
 
-func Equal[T comparable](t *testing.T, expected, actual T) {
+func Equal(t *testing.T, expected, actual any) {
 	t.Helper()
-	if expected != actual {
-		t.Errorf("not equal\nexpected: \"%v\"\n     got: \"%v\"", expected, actual)
+	v1 := reflect.ValueOf(expected)
+	if !v1.Comparable() {
+		if reflect.DeepEqual(expected, actual) {
+			return
+		}
+		if fmt.Sprintf("%#v", expected) == fmt.Sprintf("%#v", actual) {
+			return
+		}
+	} else if expected == actual {
+		return
 	}
+	t.Errorf("not equal\nexpected: \"%v\"\n     got: \"%v\"", expected, actual)
 }
 
 func EqualElements[T comparable](t *testing.T, expected, actual []T) {

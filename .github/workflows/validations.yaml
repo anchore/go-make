@@ -48,3 +48,6 @@ jobs:
           cache-dependency-path: go.sum
 
       - run: make test
+#        env:
+#          GITHUB_TOKEN: ${{ github.token }}
+#          ACTIONS_RUNTIME_TOKEN: ${{ secrets.ACTIONS_RUNTIME_TOKEN }}

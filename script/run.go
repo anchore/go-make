@@ -2,6 +2,7 @@ package script
 
 import (
 	"os"
+	"os/exec"
 
 	"github.com/anchore/go-make/binny"
 	"github.com/anchore/go-make/config"
@@ -27,13 +28,17 @@ func Run(cmd string, args ...run.Option) string {
 		args = append([]run.Option{run.Args(cmdParts[1:]...)}, args...)
 	}
 
-	// find exact command, call binny to make sure it's up-to-date
-	cmd = binny.ManagedToolPath(cmdParts[0])
-	if cmd == "" {
-		cmd = cmdParts[0]
+	// first, check if we have the tool in the path already such as gh on a GitHub Actions runner
+	var err error
+	cmd, err = exec.LookPath(cmdParts[0])
+	if cmd == "" || err != nil {
+		// find exact command, call binny to make sure it's up-to-date
+		cmd = binny.ManagedToolPath(cmdParts[0])
+		if cmd == "" {
+			cmd = cmdParts[0]
+		}
 	}
-
-	return run.Command(cmd, args...)
+	return lang.Return(run.Command(cmd, args...))
 }
 
 func parseCmd(cmd ...string) []string {

@@ -57,7 +57,7 @@ func Tasks(options ...Option) Task {
 				args = append(args, "-race")
 			}
 
-			Run("go", run.Args(args...), run.Stdout(os.Stderr))
+			Run("go", run.Args(args...), run.Stdout(os.Stderr), run.Env("GODEBUG", "dontfreezetheworld=1"))
 
 			Log("Done running %s tests in %v", cfg.Name, time.Since(start))
 

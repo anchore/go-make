@@ -63,7 +63,7 @@ func Install(cmd string) string {
 		} else if cmd != CMD && IsManagedTool(CMD) {
 			// we manage the binny updates here, because binny is not released for all platforms,
 			// and we may have to build from source
-			binnyVersion := run.Command(binnyPath, run.Args("--version"), run.Quiet())
+			binnyVersion := lang.Return(run.Command(binnyPath, run.Args("--version"), run.Quiet()))
 			binnyVersion = strings.TrimPrefix(binnyVersion, CMD)
 			if !IsManagedTool(CMD) || !isVersion(binnyVersion, binnyManaged[CMD]) {
 				// if binny needs to update, use our own install procedure since we may be on an unsupported platform
@@ -77,12 +77,12 @@ func Install(cmd string) string {
 	toolDir := filepath.Dir(toolPath)
 
 	out := bytes.Buffer{}
-	run.Command(binnyPath, run.Args("install", cmd),
+	lang.Return(run.Command(binnyPath, run.Args("install", cmd),
 		run.Env("BINNY_LOG_LEVEL", "info"),
 		run.Env("BINNY_ROOT", toolDir),
 		run.Quiet(),
 		run.Stderr(&out),
-	)
+	))
 
 	if !strings.Contains(out.String(), "already installed") {
 		// check if binny has given us an executable without .exe on windows and copy it, if so
@@ -94,8 +94,8 @@ func Install(cmd string) string {
 				file.Copy(nonExe, toolPath)
 			}))
 		}
-		log.Log("Binny installed: %v at %v", cmd, toolPath)
-		log.Debug("Binny output: %v", out.String())
+		log.Log("binny installed: %v at %v", cmd, toolPath)
+		log.Debug("    └─ output: %v", out.String())
 	}
 
 	return toolPath
@@ -220,8 +220,6 @@ func BuildFromGoSource(file string, module, entrypoint, version string, opts ...
 	log.Log("Building: %s@%s entrypoint: %s", module, version, entrypoint)
 	git.InClone("https://"+module, version, func() {
 		// go build <options> -o file <entrypoint>
-		opts = append([]run.Option{run.Args("build"), run.Stderr(io.Discard)}, opts...)
-		opts = append(opts, run.Args("-o", file, "./"+entrypoint))
-		run.Command("go", opts...)
+		lang.Return(run.Command("go", run.Args("build"), run.Stderr(io.Discard), run.Options(opts...), run.Args("-o", file, "./"+entrypoint)))
 	})
 }
