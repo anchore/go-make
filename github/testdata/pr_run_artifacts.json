@@ -1,0 +1,165 @@
+{
+  "total_count": 8,
+  "artifacts": [
+    {
+      "id": 3767901116,
+      "node_id": "MDg6QXJ0aWZhY3QzNzY3OTAxMTE2",
+      "name": "homebrew",
+      "size_in_bytes": 742,
+      "url": "https://api.github.com/repos/anchore/syft/actions/artifacts/3767901116",
+      "archive_download_url": "https://api.github.com/repos/anchore/syft/actions/artifacts/3767901116/zip",
+      "expired": false,
+      "digest": "sha256:68e0d7a042fbf7e723f100a05fa7152d3c1a241dbd7ebdad12b38bf73d31f126",
+      "created_at": "2025-08-14T18:14:26Z",
+      "updated_at": "2025-08-14T18:14:26Z",
+      "expires_at": "2025-09-13T18:14:25Z",
+      "workflow_run": {
+        "id": 16972954485,
+        "repository_id": 262126497,
+        "head_repository_id": 395231018,
+        "head_branch": "fix/jruby-jars",
+        "head_sha": "7befde0c7a4cdf5e9fd4cef19212c799fdca29a5"
+      }
+    },
+    {
+      "id": 3767901755,
+      "node_id": "MDg6QXJ0aWZhY3QzNzY3OTAxNzU1",
+      "name": "linux-build_linux_arm64_v8.0",
+      "size_in_bytes": 19557084,
+      "url": "https://api.github.com/repos/anchore/syft/actions/artifacts/3767901755",
+      "archive_download_url": "https://api.github.com/repos/anchore/syft/actions/artifacts/3767901755/zip",
+      "expired": false,
+      "digest": "sha256:d5f80105d2fc6a6610e199021b431787073a0dacde25bd0a3c5636094ca41996",
+      "created_at": "2025-08-14T18:14:31Z",
+      "updated_at": "2025-08-14T18:14:31Z",
+      "expires_at": "2025-09-13T18:14:25Z",
+      "workflow_run": {
+        "id": 16972954485,
+        "repository_id": 262126497,
+        "head_repository_id": 395231018,
+        "head_branch": "fix/jruby-jars",
+        "head_sha": "7befde0c7a4cdf5e9fd4cef19212c799fdca29a5"
+      }
+    },
+    {
+      "id": 3767901762,
+      "node_id": "MDg6QXJ0aWZhY3QzNzY3OTAxNzYy",
+      "name": "linux-build_linux_ppc64le_power8",
+      "size_in_bytes": 19281934,
+      "url": "https://api.github.com/repos/anchore/syft/actions/artifacts/3767901762",
+      "archive_download_url": "https://api.github.com/repos/anchore/syft/actions/artifacts/3767901762/zip",
+      "expired": false,
+      "digest": "sha256:b06a822495727deb42b3bbbc6cf93962d3a2f1d8f28845aae03c993091b0b64a",
+      "created_at": "2025-08-14T18:14:31Z",
+      "updated_at": "2025-08-14T18:14:31Z",
+      "expires_at": "2025-09-13T18:14:25Z",
+      "workflow_run": {
+        "id": 16972954485,
+        "repository_id": 262126497,
+        "head_repository_id": 395231018,
+        "head_branch": "fix/jruby-jars",
+        "head_sha": "7befde0c7a4cdf5e9fd4cef19212c799fdca29a5"
+      }
+    },
+    {
+      "id": 3767901794,
+      "node_id": "MDg6QXJ0aWZhY3QzNzY3OTAxNzk0",
+      "name": "darwin-build_darwin_arm64_v8.0",
+      "size_in_bytes": 20370345,
+      "url": "https://api.github.com/repos/anchore/syft/actions/artifacts/3767901794",
+      "archive_download_url": "https://api.github.com/repos/anchore/syft/actions/artifacts/3767901794/zip",
+      "expired": false,
+      "digest": "sha256:a176d3995d74e09d800a932efacbb6844d04742a6c1dcfb00a1bcaf0468777a8",
+      "created_at": "2025-08-14T18:14:31Z",
+      "updated_at": "2025-08-14T18:14:31Z",
+      "expires_at": "2025-09-13T18:14:25Z",
+      "workflow_run": {
+        "id": 16972954485,
+        "repository_id": 262126497,
+        "head_repository_id": 395231018,
+        "head_branch": "fix/jruby-jars",
+        "head_sha": "7befde0c7a4cdf5e9fd4cef19212c799fdca29a5"
+      }
+    },
+    {
+      "id": 3767901817,
+      "node_id": "MDg6QXJ0aWZhY3QzNzY3OTAxODE3",
+      "name": "linux-build_linux_amd64_v1",
+      "size_in_bytes": 21089455,
+      "url": "https://api.github.com/repos/anchore/syft/actions/artifacts/3767901817",
+      "archive_download_url": "https://api.github.com/repos/anchore/syft/actions/artifacts/3767901817/zip",
+      "expired": false,
+      "digest": "sha256:3e79935cb0be5fee6b6e698ea00293003641a93822d97d8d416402468ac80a59",
+      "created_at": "2025-08-14T18:14:31Z",
+      "updated_at": "2025-08-14T18:14:31Z",
+      "expires_at": "2025-09-13T18:14:25Z",
+      "workflow_run": {
+        "id": 16972954485,
+        "repository_id": 262126497,
+        "head_repository_id": 395231018,
+        "head_branch": "fix/jruby-jars",
+        "head_sha": "7befde0c7a4cdf5e9fd4cef19212c799fdca29a5"
+      }
+    },
+    {
+      "id": 3767901836,
+      "node_id": "MDg6QXJ0aWZhY3QzNzY3OTAxODM2",
+      "name": "windows-build_windows_amd64_v1",
+      "size_in_bytes": 21682120,
+      "url": "https://api.github.com/repos/anchore/syft/actions/artifacts/3767901836",
+      "archive_download_url": "https://api.github.com/repos/anchore/syft/actions/artifacts/3767901836/zip",
+      "expired": false,
+      "digest": "sha256:2913f65620ccd7c58f4aa8232163510f66a210070c2c92398ab2fba74d5df914",
+      "created_at": "2025-08-14T18:14:31Z",
+      "updated_at": "2025-08-14T18:14:31Z",
+      "expires_at": "2025-09-13T18:14:25Z",
+      "workflow_run": {
+        "id": 16972954485,
+        "repository_id": 262126497,
+        "head_repository_id": 395231018,
+        "head_branch": "fix/jruby-jars",
+        "head_sha": "7befde0c7a4cdf5e9fd4cef19212c799fdca29a5"
+      }
+    },
+    {
+      "id": 3767901840,
+      "node_id": "MDg6QXJ0aWZhY3QzNzY3OTAxODQw",
+      "name": "linux-build_linux_s390x",
+      "size_in_bytes": 20442757,
+      "url": "https://api.github.com/repos/anchore/syft/actions/artifacts/3767901840",
+      "archive_download_url": "https://api.github.com/repos/anchore/syft/actions/artifacts/3767901840/zip",
+      "expired": false,
+      "digest": "sha256:16605dee2cbf6010cda2a776efdcf1674294bf0b9bf41bb7333bb98ee0d5b913",
+      "created_at": "2025-08-14T18:14:31Z",
+      "updated_at": "2025-08-14T18:14:31Z",
+      "expires_at": "2025-09-13T18:14:25Z",
+      "workflow_run": {
+        "id": 16972954485,
+        "repository_id": 262126497,
+        "head_repository_id": 395231018,
+        "head_branch": "fix/jruby-jars",
+        "head_sha": "7befde0c7a4cdf5e9fd4cef19212c799fdca29a5"
+      }
+    },
+    {
+      "id": 3767901852,
+      "node_id": "MDg6QXJ0aWZhY3QzNzY3OTAxODUy",
+      "name": "darwin-build_darwin_amd64_v1",
+      "size_in_bytes": 21922246,
+      "url": "https://api.github.com/repos/anchore/syft/actions/artifacts/3767901852",
+      "archive_download_url": "https://api.github.com/repos/anchore/syft/actions/artifacts/3767901852/zip",
+      "expired": false,
+      "digest": "sha256:346b8351766aa3c5547bfb35749aaeb12bb2a90898634d65ade34c8403a548d0",
+      "created_at": "2025-08-14T18:14:31Z",
+      "updated_at": "2025-08-14T18:14:31Z",
+      "expires_at": "2025-09-13T18:14:25Z",
+      "workflow_run": {
+        "id": 16972954485,
+        "repository_id": 262126497,
+        "head_repository_id": 395231018,
+        "head_branch": "fix/jruby-jars",
+        "head_sha": "7befde0c7a4cdf5e9fd4cef19212c799fdca29a5"
+      }
+    }
+  ]
+}

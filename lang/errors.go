@@ -134,12 +134,13 @@ func stackTraceLines() []string {
 }
 
 func skipTraceLine(line string) bool {
-	if config.DebugEnabled {
+	if config.Debug {
 		return false
 	}
 	line = strings.TrimSpace(line)
 	return strings.HasPrefix(line, "panic(") ||
 		strings.HasPrefix(line, "runtime/") ||
+		strings.Contains(line, "testing.") ||
 		strings.HasPrefix(line, "main.main()") ||
 		(strings.HasPrefix(line, "github.com/anchore/go-make/") &&
 			!strings.HasPrefix(line, "github.com/anchore/go-make/tasks/"))

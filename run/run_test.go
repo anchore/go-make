@@ -79,10 +79,8 @@ func Test_Command(t *testing.T) {
 			require.SetAndRestore(t, &log.Log, func(format string, args ...any) {
 				commandLog = fmt.Sprintf(format, args...)
 			})
-			var result string
-			tt.wantErr.Validate(t, Catch(func() {
-				result = Command(testapp, tt.args...)
-			}))
+			result, err := Command(testapp, tt.args...)
+			tt.wantErr.Validate(t, err)
 			tt.validate(t, commandLog, result)
 			buf1.Reset()
 			buf2.Reset()

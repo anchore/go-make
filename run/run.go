@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/anchore/go-make/color"
-	"github.com/anchore/go-make/config"
 	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
 )
@@ -22,7 +21,7 @@ type Option func(context.Context, *exec.Cmd) error
 // Command runs a command, waits until completion, and returns stdout.
 // The first argument is the path to the binary and DOES NOT shell-split.
 // When not captured, stderr is output to os.Stderr and returned as part of the error text.
-func Command(cmd string, opts ...Option) string {
+func Command(cmd string, opts ...Option) (string, error) {
 	// by default, only capture output without duplicating it to logs
 	opts = append([]Option{func(_ context.Context, cmd *exec.Cmd) error {
 		cmd.Stdout = io.Discard
@@ -54,19 +53,31 @@ func Command(cmd string, opts ...Option) string {
 		if stderr.Len() > 0 {
 			fullStdOut += "\nSTDERR:\n" + stderr.String()
 		}
-		panic(
-			lang.NewStackTraceError(fmt.Errorf("error executing: '%s %s': %w", cmd, printArgs(opts), err)).
-				WithExitCode(exitCode).
-				WithLog(fullStdOut))
+		err = lang.NewStackTraceError(fmt.Errorf("error executing: '%s %s': %w", cmd, printArgs(opts), err)).
+			WithExitCode(exitCode).
+			WithLog(fullStdOut)
 	}
 
-	return strings.TrimSpace(stdout.String())
+	return strings.TrimSpace(stdout.String()), err
 }
 
 // Args appends args to the command
 func Args(args ...string) Option {
 	return func(_ context.Context, cmd *exec.Cmd) error {
 		cmd.Args = append(cmd.Args, args...)
+		return nil
+	}
+}
+
+// Options allows multiple options to be passed as one Option
+func Options(options ...Option) Option {
+	return func(ctx context.Context, cmd *exec.Cmd) error {
+		for _, opt := range options {
+			err := opt(ctx, cmd)
+			if err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 }
@@ -91,6 +102,17 @@ func Quiet() Option {
 		cfg, _ := ctx.Value(runConfig{}).(*runConfig)
 		if cfg != nil {
 			cfg.quiet = true
+		}
+		return nil
+	}
+}
+
+// NoFail logs at Debug level instead of panicking
+func NoFail() Option {
+	return func(ctx context.Context, cmd *exec.Cmd) error {
+		cfg, _ := ctx.Value(runConfig{}).(*runConfig)
+		if cfg != nil {
+			cfg.noFail = true
 		}
 		return nil
 	}
@@ -151,7 +173,7 @@ func LDFlags(flags ...string) Option {
 // runCommand executes the given command, returning any error information
 func runCommand(cmd string, opts ...Option) (int, error) {
 	// create the command, this will look it up based on path:
-	c := exec.CommandContext(config.Context, cmd)
+	c := exec.CommandContext(Context(), cmd)
 
 	env := os.Environ()
 	var dropped []string
@@ -170,7 +192,7 @@ func runCommand(cmd string, opts ...Option) (int, error) {
 	}
 
 	cfg := runConfig{}
-	ctx := context.WithValue(config.Context, runConfig{}, &cfg)
+	ctx := context.WithValue(Context(), runConfig{}, &cfg)
 
 	// finally, apply all the options to modify the command
 	for _, opt := range opts {
@@ -193,10 +215,18 @@ func runCommand(cmd string, opts ...Option) (int, error) {
 
 	// execute
 	err := c.Run()
-	if err != nil || (c.ProcessState != nil && c.ProcessState.ExitCode() > 0) {
-		return c.ProcessState.ExitCode(), err
+	exitCode := 0
+	if c.ProcessState != nil {
+		exitCode = c.ProcessState.ExitCode()
 	}
-	return 0, nil
+	if err != nil || exitCode > 0 {
+		if cfg.noFail {
+			log.Debug("error executing: '%v %v' exit code: %v: %v", displayPath(cmd), strings.Join(args, " "), exitCode, err)
+		} else {
+			return exitCode, err
+		}
+	}
+	return exitCode, nil
 }
 
 func skipEnvVar(s string) bool {
@@ -250,5 +280,6 @@ func printArgs(args []Option) string {
 }
 
 type runConfig struct {
-	quiet bool
+	quiet  bool
+	noFail bool
 }

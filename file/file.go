@@ -65,9 +65,11 @@ func InDir(dir string, run func()) {
 // WithTempDir creates a temporary directory, provided for the duration of the function call, removing all contents upon completion
 func WithTempDir(fn func(dir string)) {
 	tmp := lang.Return(os.MkdirTemp(config.TmpDir, "buildtools-tmp-"))
-	defer func() {
-		log.Error(os.RemoveAll(tmp))
-	}()
+	if config.Cleanup {
+		defer func() {
+			log.Error(os.RemoveAll(tmp))
+		}()
+	}
 	fn(tmp)
 }
 

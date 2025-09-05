@@ -31,10 +31,10 @@ var Error = func(err error, args ...any) {
 }
 
 func init() {
-	if config.DebugEnabled || config.TraceEnabled {
+	if config.Debug || config.Trace {
 		Debug = debugLog
 	}
-	if config.TraceEnabled {
+	if config.Trace {
 		Trace = traceLog
 	}
 }

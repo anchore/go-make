@@ -5,6 +5,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/anchore/go-make/binny"
 	"github.com/anchore/go-make/color"
@@ -12,6 +13,7 @@ import (
 	"github.com/anchore/go-make/file"
 	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
+	"github.com/anchore/go-make/run"
 	"github.com/anchore/go-make/template"
 )
 
@@ -52,6 +54,14 @@ func (t Task) RunOn(tasks ...string) Task {
 // Makefile will execute the provided tasks much like make with dependencies,
 // as per the Task behavior declared above
 func Makefile(tasks ...Task) {
+	if config.Debug {
+		run.PeriodicStackTraces(30 * time.Second)
+	}
+	runTaskFile(tasks...)
+}
+
+//nolint:funlen
+func runTaskFile(tasks ...Task) {
 	defer lang.HandleErrors()
 
 	file.Cd(template.Render(config.RootDir))
@@ -92,6 +102,16 @@ func Makefile(tasks ...Task) {
 			Name: "binny:install",
 			Run: func() {
 				binny.InstallAll()
+			},
+		},
+		&Task{
+			Name: "debuginfo",
+			Run: func() {
+				log.Debug("ENV: %v", os.Environ())
+				ciEventFile := os.Getenv("GITHUB_EVENT_PATH")
+				if ciEventFile != "" {
+					log.Debug("GitHub Action event:\n%s", log.FormatJSON(string(lang.Continue(os.ReadFile(ciEventFile)))))
+				}
 			},
 		},
 		&Task{
