@@ -14,6 +14,7 @@ func g[T any](v T, err error) T {
 }
 
 func main() {
+	exit := 0
 	for i := 1; i < len(os.Args); i++ {
 		switch os.Args[i] {
 		case "stdout":
@@ -28,8 +29,9 @@ func main() {
 			}
 			g(os.Stderr.WriteString(value))
 		case "exit-code":
-			os.Exit(g(strconv.Atoi(os.Args[i+1])))
+			exit = g(strconv.Atoi(os.Args[i+1]))
 		}
 		i++
 	}
+	os.Exit(exit)
 }

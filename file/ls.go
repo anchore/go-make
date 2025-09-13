@@ -24,13 +24,15 @@ func Ls(dir string) string {
 	return buf.String()
 }
 
+// LogWorkdir logs an ls of the current working directory
 func LogWorkdir() {
-	if config.DebugEnabled {
-		cwd := Cwd()
-		log.Log("CWD: %s", cwd)
-		for _, line := range strings.Split(Ls(cwd), "\n") {
-			log.Log(line)
-		}
+	if !config.Debug {
+		return
+	}
+	cwd := Cwd()
+	log.Info("CWD: %s", cwd)
+	for _, line := range strings.Split(Ls(cwd), "\n") {
+		log.Info(line)
 	}
 }
 

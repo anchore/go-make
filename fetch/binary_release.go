@@ -37,17 +37,17 @@ type ReleaseSpec struct {
 func BinaryRelease(toolPath string, spec ReleaseSpec) error {
 	url := spec.render(runtime.GOOS, runtime.GOARCH)
 
-	log.Log("Downloading: %v", url)
+	log.Info("Downloading: %v", url)
 
 	buf := bytes.Buffer{}
-	_, code, status := Fetch(url, Writer(&buf))
-	contents := buf.Bytes()
-	if code > 300 || len(contents) == 0 {
-		return fmt.Errorf("error downloading %v: http %v %v", url, code, status)
+	_, err := Fetch(url, Writer(&buf))
+	if err != nil {
+		return err
 	}
+	contents := buf.Bytes()
 	contents = getArchiveFileContents(contents, filepath.Base(toolPath))
 	if contents == nil {
-		return fmt.Errorf("unable to read archive from downloading %v: http %v %v", url, code, status)
+		return fmt.Errorf("unable to read archive from: %v", url)
 	}
 	dir := filepath.Dir(toolPath)
 	if !file.Exists(dir) {

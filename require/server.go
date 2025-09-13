@@ -5,6 +5,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,11 +13,16 @@ import (
 	"github.com/anchore/go-make/lang"
 )
 
-func Server(t *testing.T, routes map[string]any) string {
+func Server(t *testing.T, routes map[string]any, urlMapper ...func(string) string) string {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handler := routes[r.URL.Path]
+		for _, mapper := range urlMapper {
+			r.RequestURI = mapper(r.RequestURI)
+		}
+		handler := routes[r.RequestURI]
 		switch handler := handler.(type) {
-		case func(w http.ResponseWriter, r *http.Request):
+		case http.HandlerFunc:
+			handler(w, r)
+		case func(http.ResponseWriter, *http.Request):
 			handler(w, r)
 		case []byte:
 			w.WriteHeader(http.StatusOK)
@@ -26,8 +32,17 @@ func Server(t *testing.T, routes map[string]any) string {
 			w.WriteHeader(http.StatusOK)
 			_, err := w.Write([]byte(handler))
 			NoError(t, err)
-		default:
+		case nil:
 			w.WriteHeader(http.StatusNotFound)
+		default:
+			w.WriteHeader(http.StatusOK)
+			w.Header().Set("Content-Type", "application/json")
+			enc := json.NewEncoder(w)
+			enc.SetIndent("", "  ")
+			err := enc.Encode(handler)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+			}
 		}
 	}))
 	t.Cleanup(server.Close)

@@ -7,13 +7,14 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/anchore/go-make/config"
 	"github.com/anchore/go-make/require"
 )
 
 func Test_BinaryRelease(t *testing.T) {
 	content := "test binary content"
 	fileName := "thething"
-	if runtime.GOOS == "windows" {
+	if config.Windows {
 		fileName += ".exe"
 	}
 
@@ -21,7 +22,7 @@ func Test_BinaryRelease(t *testing.T) {
 	archive := require.Gzip(require.Tar(map[string][]byte{
 		fileName: []byte(content),
 	}))
-	if runtime.GOOS == "windows" {
+	if config.Windows {
 		ext = "zip"
 		archive = require.Zip(map[string][]byte{
 			fileName: []byte(content),

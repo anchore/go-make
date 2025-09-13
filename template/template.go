@@ -15,7 +15,6 @@ func init() {
 	Globals["RootDir"] = renderFunc(&config.RootDir)
 	Globals["OS"] = renderFunc(&config.OS)
 	Globals["Arch"] = renderFunc(&config.Arch)
-	Globals["Platform"] = renderFunc(&config.Platform)
 }
 
 func Render(template string, args ...map[string]any) string {

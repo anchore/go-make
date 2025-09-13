@@ -13,6 +13,8 @@ import (
 	. "github.com/anchore/go-make"
 	"github.com/anchore/go-make/config"
 	"github.com/anchore/go-make/file"
+	"github.com/anchore/go-make/github"
+	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
 	"github.com/anchore/go-make/run"
 )
@@ -26,10 +28,10 @@ func Tasks(options ...Option) Task {
 	return Task{
 		Name:        cfg.Name,
 		Description: fmt.Sprintf("run %s tests", cfg.Name),
-		RunsOn:      List("test"),
+		RunsOn:      Deps("test"),
 		Run: func() {
 			start := time.Now()
-			args := List("test")
+			args := Deps("test")
 			if cfg.Verbose {
 				args = append(args, "-v")
 			}
@@ -57,7 +59,7 @@ func Tasks(options ...Option) Task {
 				args = append(args, "-race")
 			}
 
-			Run("go", run.Args(args...), run.Stdout(os.Stderr))
+			Run("go", run.Args(args...), run.Stdout(os.Stderr), run.Env("GODEBUG", "dontfreezetheworld=1"))
 
 			Log("Done running %s tests in %v", cfg.Name, time.Since(start))
 
@@ -75,6 +77,20 @@ func Tasks(options ...Option) Task {
 						log.Error(fmt.Errorf("unable to find coverage percentage in report"))
 						Log(report)
 					}
+				}
+			}
+
+			if coverageFile != "" && config.OS == "linux" {
+				err := lang.Catch(func() {
+					dir := filepath.Dir(coverageFile)
+					lang.Return(github.NewClient().UploadArtifactDir(dir, github.UploadArtifactOption{
+						ArtifactName: "code-coverage",
+						Overwrite:    false, // we only need one, failures are logged but ignored
+						Files:        []string{coverageFile},
+					}))
+				})
+				if err != nil {
+					log.Debug("error uploading coverage file: %v", err)
 				}
 			}
 		},
@@ -96,7 +112,7 @@ func defaultConfig() Config {
 		Name:        "unit",
 		IncludeGlob: "./...",
 		Coverage:    true,
-		Race:        true,
+		Race:        config.CI && !config.Windows,
 	}
 }
 

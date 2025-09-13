@@ -23,14 +23,6 @@ tools:
     with:
       repo: rinchsan/gosimports
 
-  # used at release to generate the changelog
-  - name: chronicle
-    version:
-      want: v0.8.0
-    method: github-release
-    with:
-      repo: anchore/chronicle
-
   # used during static analysis for license compliance
   - name: bouncer
     version:
@@ -38,6 +30,14 @@ tools:
     method: github-release
     with:
       repo: wagoodman/go-bouncer
+
+  # used at release to generate the changelog
+  - name: chronicle
+    version:
+      want: v0.8.0
+    method: github-release
+    with:
+      repo: anchore/chronicle
 
   # used for triggering a release
   - name: gh
