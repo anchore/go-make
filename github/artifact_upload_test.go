@@ -223,5 +223,5 @@ func skipPlatform() bool {
 	}
 	// only run these tests on one windows runner, `windows-latest-stable` for now
 	s := matrixSuffix()
-	return strings.Contains(s, "latest") && strings.Contains(s, "stable")
+	return !(strings.Contains(s, "latest") && strings.Contains(s, "stable"))
 }
