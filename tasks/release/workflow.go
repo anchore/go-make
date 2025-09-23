@@ -59,7 +59,7 @@ func WorkflowReleaseTask() Task {
 			nextVersion := strings.TrimSpace(version)
 
 			if nextVersion == "" || nextVersion == "(Unreleased)" {
-				log.Log("Could not determine the next version to release. Exiting...")
+				log.Info("Could not determine the next version to release. Exiting...")
 				os.Exit(1)
 			}
 
@@ -67,14 +67,14 @@ func WorkflowReleaseTask() Task {
 			script.Confirm("Do you want to trigger a release for version '%s'?", nextVersion)
 
 			// trigger release
-			log.Log("Kicking off release for %s", nextVersion)
+			log.Info("Kicking off release for %s", nextVersion)
 			Run(fmt.Sprintf("gh workflow run %s -f version=%s", releaseWorkflowName, nextVersion))
 
-			log.Log("Waiting for release to start...")
+			log.Info("Waiting for release to start...")
 			time.Sleep(10 * time.Second)
 
 			url := Run(fmt.Sprintf("gh run list --workflow=%s --limit=1 --json url --jq '.[].url'", releaseWorkflowName))
-			log.Log(url)
+			log.Info(url)
 		},
 	}
 }

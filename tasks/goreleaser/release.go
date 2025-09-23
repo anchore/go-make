@@ -29,7 +29,7 @@ func CIReleaseTask() Task {
 	return Task{
 		Name:         "ci-release",
 		Description:  "build and publish a release with goreleaser",
-		Dependencies: List("release:dependencies"),
+		Dependencies: Deps("release:dependencies"),
 		Run: func() {
 			file.Require(configName)
 
@@ -42,7 +42,7 @@ func CIReleaseTask() Task {
 		Tasks: []Task{quillInstallTask(), syftInstallTask(), {
 			Name:         "release:dependencies",
 			Description:  "ensure all release dependencies are installed",
-			Dependencies: List("dependencies:quill", "dependencies:syft"),
+			Dependencies: Deps("dependencies:quill", "dependencies:syft"),
 		}},
 	}
 }
@@ -52,7 +52,7 @@ func ensureHeadHasTag() {
 
 	for _, tag := range tags {
 		if strings.HasPrefix(tag, "v") {
-			log.Log("HEAD has a version tag: %s", tag)
+			log.Info("HEAD has a version tag: %s", tag)
 			return
 		}
 	}

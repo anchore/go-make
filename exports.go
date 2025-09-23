@@ -1,23 +1,13 @@
 package gomake
 
 import (
-	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
-	"github.com/anchore/go-make/script"
 )
 
-type (
-	Task = script.Task
-)
-
-func List[T any](items ...T) []T {
-	return lang.List(items...)
+func Deps(deps ...string) []string {
+	return deps
 }
 
 var (
-	Makefile = script.Makefile
-
-	Run = script.Run
-
-	Log = log.Log
+	Log = log.Info
 )

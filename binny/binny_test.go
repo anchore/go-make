@@ -1,11 +1,9 @@
 package binny
 
 import (
-	"os"
-	"path/filepath"
+	"strings"
 	"testing"
 
-	"github.com/anchore/go-make/file"
 	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/require"
 	"github.com/anchore/go-make/template"
@@ -23,7 +21,7 @@ func Test_installBinny(t *testing.T) {
 			version: "main", // does not have a release, will build from branch
 		},
 		{
-			version: "bad\nyam: :l \n:", // malformed yaml should panic
+			version: "bad\ny\nam: :l \n:", // malformed yaml should panic
 			err:     require.Error,
 		},
 		{
@@ -41,12 +39,11 @@ func Test_installBinny(t *testing.T) {
 			template.Globals["GitRoot"] = tmpDir
 			binnyPath := ToolPath("binny")
 
-			binnyYaml := filepath.Join(tmpDir, ".binny.yaml")
-			require.NoError(t, os.WriteFile(binnyYaml, []byte(`tools:
+			binnyYaml := strings.NewReader(`tools:
   # we want to use a pinned version of binny to manage the toolchain (so binny manages itself!)
   - name: binny
     version:
-      want: `+tt.version+`
+      want: ` + tt.version + `
     method: github-release
     with:
       repo: anchore/binny
@@ -58,25 +55,23 @@ func Test_installBinny(t *testing.T) {
     method: github-release
     with:
       repo: golangci/golangci-lint
-`), 0o700))
-			file.DosToUnix(binnyYaml)
-
+`)
 			if tt.err == nil {
 				tt.err = require.NoError
 			}
 
 			tt.err(t, lang.Catch(func() {
-				versions := readBinnyYamlVersions()
+				versions := readBinnyYamlVersions(binnyYaml)
 				require.Equal(t, tt.version, versions["binny"])
 				require.Equal(t, "v2.3.1", versions["golangci-lint"])
 
-				installBinny(binnyPath)
+				installBinny(binnyPath, tt.version)
 			}))
 		})
 	}
 }
 
-func Test_isVersion(t *testing.T) {
+func Test_matchesVersion(t *testing.T) {
 	tests := []struct {
 		version1 string
 		version2 string
@@ -131,7 +126,7 @@ func Test_isVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.version1+" "+tt.version2, func(t *testing.T) {
-			require.Equal(t, tt.want, isVersion(tt.version1, tt.version2))
+			require.Equal(t, tt.want, matchesVersion(tt.version1, tt.version2))
 		})
 	}
 }

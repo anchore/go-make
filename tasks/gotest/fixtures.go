@@ -5,39 +5,39 @@ import (
 	"path/filepath"
 	"strings"
 
+	. "github.com/anchore/go-make"
 	"github.com/anchore/go-make/file"
 	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
-	"github.com/anchore/go-make/script"
 )
 
-func FixtureTasks() script.Task {
-	return script.Task{
+func FixtureTasks() Task {
+	return Task{
 		Name:        "fixtures",
 		Description: "build test fixtures",
 		RunsOn:      lang.List("unit"),
 		Run: func() {
-			for _, f := range file.FindAll(file.JoinPaths(script.RepoRoot(), "**/{test-fixtures,testdata}/Makefile")) {
+			for _, f := range file.FindAll(file.JoinPaths(RootDir(), "**/{test-fixtures,testdata}/Makefile")) {
 				dir := filepath.Dir(f)
 				file.InDir(dir, func() {
-					log.Log("Building fixture %s", dir)
-					script.Run("make")
+					log.Info("Building fixture %s", dir)
+					Run("make")
 				})
 			}
 		},
-		Tasks: []script.Task{
+		Tasks: []Task{
 			{
 				Name:        "fixtures:clean",
 				Description: "clean internal git test fixture caches",
 				RunsOn:      lang.List("clean"),
 				Run: func() {
-					for _, f := range file.FindAll(file.JoinPaths(script.RepoRoot(), "**/{test-fixtures,testdata}/Makefile")) {
+					for _, f := range file.FindAll(file.JoinPaths(RootDir(), "**/{test-fixtures,testdata}/Makefile")) {
 						dir := filepath.Dir(f)
 						file.InDir(dir, func() {
-							log.Log("Cleaning fixture %s", dir)
+							log.Info("Cleaning fixture %s", dir)
 							// allow errors to continue
 							log.Error(lang.Catch(func() {
-								script.Run("make clean")
+								Run("make clean")
 							}))
 						})
 					}
@@ -47,13 +47,12 @@ func FixtureTasks() script.Task {
 				Name:        "fixtures:directories",
 				Description: "list all fixture directories",
 				Run: func() {
-					repoRoot := script.RepoRoot()
-					// find all direct subdirectories of our repoRoot's test-fixtures directories
-					paths := file.FindAll(file.JoinPaths(repoRoot, "**/{test-fixtures,testdata}/*/.gitignore"))
+					// find all direct subdirectories of our root dir's test-fixtures directories
+					paths := file.FindAll(file.JoinPaths(RootDir(), "**/{test-fixtures,testdata}/*/.gitignore"))
 					// return relative paths
 					paths = lang.Map(paths, func(path string) string {
 						path = filepath.Dir(path)
-						path = strings.TrimPrefix(path, repoRoot)
+						path = strings.TrimPrefix(path, RootDir())
 						path = filepath.ToSlash(path)
 						path = strings.TrimPrefix(path, "/")
 						return path
@@ -66,7 +65,7 @@ func FixtureTasks() script.Task {
 				Description: "get test fixtures cache fingerprint",
 				Run: func() {
 					// should this be ".../Makefile" ?
-					lang.Return(os.Stdout.WriteString(file.Fingerprint(file.JoinPaths(script.RepoRoot(), "**/{test-fixtures,testdata}/*"))))
+					lang.Return(os.Stdout.WriteString(file.Fingerprint(file.JoinPaths(RootDir(), "**/{test-fixtures,testdata}/*"))))
 				},
 			},
 		},

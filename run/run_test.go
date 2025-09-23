@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/anchore/go-make/config"
 	. "github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
 	"github.com/anchore/go-make/require"
@@ -19,10 +19,10 @@ func Test_Command(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	testapp := filepath.Join(tmpDir, "testapp")
-	if runtime.GOOS == "windows" {
+	if config.Windows {
 		testapp += ".exe"
 	}
-	_, err := runCommand("go", Args("build", "-C", filepath.Join("testdata", "testapp"), "-o", testapp, "."))
+	_, err := Command("go", Args("build", "-C", filepath.Join("testdata", "testapp"), "-o", testapp, "."))
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -76,13 +76,11 @@ func Test_Command(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			commandLog := ""
-			require.SetAndRestore(t, &log.Log, func(format string, args ...any) {
+			require.SetAndRestore(t, &log.Info, func(format string, args ...any) {
 				commandLog = fmt.Sprintf(format, args...)
 			})
-			var result string
-			tt.wantErr.Validate(t, Catch(func() {
-				result = Command(testapp, tt.args...)
-			}))
+			result, err := Command(testapp, tt.args...)
+			tt.wantErr.Validate(t, err)
 			tt.validate(t, commandLog, result)
 			buf1.Reset()
 			buf2.Reset()
