@@ -7,25 +7,27 @@ import (
 	"github.com/anchore/go-make/log"
 )
 
-// Default returns the first value that does not equal the type's default value
-func Default[T comparable](value T, defaultValue T) T {
+// Default returns the first value that is set (the first value does not equal the type's zero value)
+func Default[T comparable](values ...T) T {
 	var def T
-	if value == def {
-		return defaultValue
+	for _, v := range values {
+		if v != def {
+			return v
+		}
 	}
-	return value
+	return def
+}
+
+// Continue returns the return value regardless of any error, logging any error instead of panicking
+func Continue[T any](t T, e error) T {
+	log.Error(e)
+	return t
 }
 
 // Return returns the provided value, panicking if a non-nil error is provided
 func Return[T any](t T, e error) T {
 	Throw(e)
 	return t
-}
-
-// Return2 returns the provided values, panicking if a non-nil error is provided
-func Return2[T1, T2 any](t1 T1, t2 T2, e error) (T1, T2) {
-	Throw(e)
-	return t1, t2
 }
 
 // List returns a slice containing all the provided values, removing any nil or "empty" values

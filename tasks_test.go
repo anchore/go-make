@@ -1,19 +1,16 @@
-package script
+package gomake
 
 import (
 	"bytes"
 	"testing"
 
-	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/require"
 	"github.com/anchore/go-make/run"
 )
 
 func Test_errorsIncludeStackTrace(t *testing.T) {
 	stderr := bytes.Buffer{}
-	err := lang.Catch(func() {
-		run.Command("go", run.Args("run", "./testdata/failure-example", "example-failure"), run.Stderr(&stderr))
-	})
+	_, err := run.Command("go", run.Args("run", "./testdata/failure-example", "example-failure"), run.Stderr(&stderr))
 	require.Error(t, err)
 	require.Contains(t, stderr.String(), "error executing")
 

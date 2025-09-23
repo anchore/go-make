@@ -1,15 +1,15 @@
 package golint
 
 import (
-	"github.com/anchore/go-make/script"
+	. "github.com/anchore/go-make"
 )
 
-func CheckLicensesTask() script.Task {
-	return script.Task{
+func CheckLicensesTask() Task {
+	return Task{
 		Name:        "check-licenses",
 		Description: "ensure dependencies have allowable licenses",
 		Run: func() {
-			script.Run(`bouncer check ./...`)
+			Run(`bouncer check ./...`)
 		},
 	}
 }

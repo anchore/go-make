@@ -13,7 +13,7 @@ func SnapshotTasks() Task {
 	return Task{
 		Name:         "snapshot",
 		Description:  "build a snapshot release with goreleaser",
-		Dependencies: List("release:dependencies"),
+		Dependencies: Deps("release:dependencies"),
 		Run: func() {
 			file.Require(configName)
 

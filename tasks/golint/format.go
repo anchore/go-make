@@ -10,12 +10,12 @@ import (
 	"strconv"
 	"strings"
 
+	. "github.com/anchore/go-make"
 	"github.com/anchore/go-make/file"
 	"github.com/anchore/go-make/gomod"
 	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
 	"github.com/anchore/go-make/run"
-	"github.com/anchore/go-make/script"
 	"github.com/anchore/go-make/template"
 )
 
@@ -40,9 +40,9 @@ func SkipTests() Option {
 	}
 }
 
-func Tasks(options ...Option) script.Task {
-	return script.Task{
-		Tasks: []script.Task{
+func Tasks(options ...Option) Task {
+	return Task{
+		Tasks: []Task{
 			StaticAnalysisTask(options...),
 			FormatTask(),
 			LintFixTask(options...),
@@ -50,19 +50,19 @@ func Tasks(options ...Option) script.Task {
 	}
 }
 
-func StaticAnalysisTask(options ...Option) script.Task {
-	return script.Task{
+func StaticAnalysisTask(options ...Option) Task {
+	return Task{
 		Name:        "static-analysis",
 		Description: "run lint checks",
 		RunsOn:      lang.List("default"),
 		Run: func() {
 			if hasModTidyDiff() {
-				script.Run("go mod tidy -diff")
+				Run("go mod tidy -diff")
 			}
 			log.Debug("CWD: %s", file.Cwd())
-			script.Run("golangci-lint run", toRunOpts(options)...)
+			Run("golangci-lint run", toRunOpts(options)...)
 			lang.Throw(findMalformedFilenames("."))
-			script.Run(`bouncer check ./...`, toRunOpts(options)...)
+			Run(`bouncer check ./...`, toRunOpts(options)...)
 		},
 	}
 }
@@ -79,29 +79,29 @@ func hasModTidyDiff() bool {
 	return lang.Return(strconv.Atoi(parts[1])) >= 23
 }
 
-func FormatTask() script.Task {
-	return script.Task{
+func FormatTask() Task {
+	return Task{
 		Name:        "format",
 		Description: "format all source files",
 		Run: func() {
-			script.Run(`gofmt -w -s .`)
+			Run(`gofmt -w -s .`)
 			if template.Globals["LocalPackage"] != nil {
-				script.Run(`gosimports -local {{LocalPackage}} -w .`)
+				Run(`gosimports -local {{LocalPackage}} -w .`)
 			} else {
-				script.Run(`gosimports -w .`)
+				Run(`gosimports -w .`)
 			}
-			script.Run(`go mod tidy`)
+			Run(`go mod tidy`)
 		},
 	}
 }
 
-func LintFixTask(options ...Option) script.Task {
-	return script.Task{
+func LintFixTask(options ...Option) Task {
+	return Task{
 		Name:         "lint-fix",
 		Description:  "format and run lint fix",
 		Dependencies: lang.List("format"),
 		Run: func() {
-			script.Run("golangci-lint run --fix", toRunOpts(options)...)
+			Run("golangci-lint run --fix", toRunOpts(options)...)
 		},
 	}
 }

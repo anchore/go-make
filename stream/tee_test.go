@@ -1,4 +1,4 @@
-package run
+package stream
 
 import (
 	"bytes"
@@ -34,7 +34,13 @@ func Test_TeeWriter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			teed := TeeWriter(tt.w1, tt.w2)
+			teed := Tee()
+			if tt.w1 != nil {
+				teed.AddWriter(tt.w1)
+			}
+			if tt.w2 != nil {
+				teed.AddWriter(tt.w2)
+			}
 			_, e := teed.Write([]byte("more"))
 			require.NoError(t, e)
 

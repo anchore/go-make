@@ -1,4 +1,4 @@
-package script
+package gomake
 
 import (
 	"fmt"

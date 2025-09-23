@@ -43,7 +43,7 @@ func Delete(path string) {
 	rootDir := lang.Return(filepath.Abs(template.Render(config.RootDir)))
 
 	if strings.HasPrefix(dirToRm, rootDir) {
-		log.Log(color.Red(`deleting: %v`), dirToRm)
+		log.Info(color.Yellow(`delete: %v`), dirToRm)
 		lang.Throw(os.RemoveAll(dirToRm))
 	} else {
 		panic(fmt.Errorf("directory '%s' not in RootDir: '%s'", dirToRm, rootDir))
@@ -65,9 +65,11 @@ func InDir(dir string, run func()) {
 // WithTempDir creates a temporary directory, provided for the duration of the function call, removing all contents upon completion
 func WithTempDir(fn func(dir string)) {
 	tmp := lang.Return(os.MkdirTemp(config.TmpDir, "buildtools-tmp-"))
-	defer func() {
-		log.Error(os.RemoveAll(tmp))
-	}()
+	if config.Cleanup {
+		defer func() {
+			log.Error(os.RemoveAll(tmp))
+		}()
+	}
 	fn(tmp)
 }
 
@@ -94,7 +96,9 @@ func IsDir(dir string) bool {
 }
 
 // EnsureDir checks if the directory exists. create if not, including any subdirectories needed
-func EnsureDir(dir string) {
+// and returns the absolute path to the directory
+func EnsureDir(dir string) string {
+	dir = lang.Return(filepath.Abs(dir))
 	s, err := os.Stat(dir)
 	if errors.Is(err, os.ErrNotExist) {
 		lang.Throw(os.MkdirAll(dir, 0o755))
@@ -104,6 +108,7 @@ func EnsureDir(dir string) {
 		panic(fmt.Errorf("path '%s' is not a directory", dir))
 	}
 	lang.Throw(err)
+	return dir
 }
 
 // IsRegular indicates the provided file exists and is a regular file, not a directory or symlink
@@ -148,7 +153,7 @@ func Require(file string) {
 
 // FindAll finds all matching files given a glob expression
 func FindAll(glob string) []string {
-	return lang.Return(doublestar.FilepathGlob(glob))
+	return lang.Return(doublestar.FilepathGlob(glob, doublestar.WithFilesOnly()))
 }
 
 // FindParent finds the first matching file in the specified directory or any parent directory

@@ -1,10 +1,11 @@
-package script
+package gomake
 
 import (
 	"fmt"
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/anchore/go-make/binny"
 	"github.com/anchore/go-make/color"
@@ -12,6 +13,7 @@ import (
 	"github.com/anchore/go-make/file"
 	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
+	"github.com/anchore/go-make/run"
 	"github.com/anchore/go-make/template"
 )
 
@@ -52,6 +54,14 @@ func (t Task) RunOn(tasks ...string) Task {
 // Makefile will execute the provided tasks much like make with dependencies,
 // as per the Task behavior declared above
 func Makefile(tasks ...Task) {
+	defer config.DoExit()
+	if config.Debug {
+		run.PeriodicStackTraces(run.Backoff(30 * time.Second))
+	}
+	runTaskFile(tasks...)
+}
+
+func runTaskFile(tasks ...Task) {
 	defer lang.HandleErrors()
 
 	file.Cd(template.Render(config.RootDir))
@@ -95,6 +105,16 @@ func Makefile(tasks ...Task) {
 			},
 		},
 		&Task{
+			Name: "debuginfo",
+			Run: func() {
+				log.Debug("ENV: %v", os.Environ())
+				ciEventFile := os.Getenv("GITHUB_EVENT_PATH")
+				if ciEventFile != "" {
+					log.Debug("GitHub Action event:\n%s", log.FormatJSON(string(lang.Continue(os.ReadFile(ciEventFile)))))
+				}
+			},
+		},
+		&Task{
 			Name: "dos2unix",
 			Run: func() {
 				files := "**/*.{go,sh,md,yml,yaml,js,json,txt}"
@@ -114,7 +134,11 @@ func Makefile(tasks ...Task) {
 		},
 	)
 
-	t.Run(os.Args[1:]...)
+	args := os.Args[1:]
+	if len(args) == 0 {
+		args = append(args, "help")
+	}
+	t.Run(args...)
 }
 
 type taskRunner struct {
@@ -196,7 +220,7 @@ func (t *taskRunner) findByLabel(name string) []*Task {
 }
 
 func (t *taskRunner) Makefile() {
-	buildCmdDir := strings.TrimLeft(strings.TrimPrefix(file.Cwd(), RepoRoot()), `\/`)
+	buildCmdDir := strings.TrimLeft(strings.TrimPrefix(file.Cwd(), RootDir()), `\/`)
 	for _, t := range t.tasks {
 		fmt.Printf(".PHONY: %s\n", t.Name)
 		fmt.Printf("%s:\n", t.Name)

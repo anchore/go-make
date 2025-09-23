@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 
@@ -26,12 +26,19 @@ import (
 const CMD = "binny"
 
 var (
-	binnyManaged = readBinnyYamlVersions()
-	installed    = map[string]string{}
+	binnyManaged    = readRootBinnyYaml()
+	defaultVersions = map[string]string{}
+	defaultContents []byte
+	installed       = map[string]string{}
 )
 
+func DefaultConfig(binnyConfig io.Reader) {
+	defaultContents = lang.Return(io.ReadAll(binnyConfig))
+	defaultVersions = readBinnyYamlVersions(bytes.NewReader(defaultContents))
+}
+
 func IsManagedTool(cmd string) bool {
-	return binnyManaged[cmd] != ""
+	return binnyManaged[cmd] != "" || defaultVersions[cmd] != ""
 }
 
 // ManagedToolPath returns the full path to a binny managed tool, installing or updating it before returning
@@ -45,11 +52,19 @@ func ManagedToolPath(cmd string) string {
 		return out
 	}
 
+	// first, check if we have the tool in the path already, such as `gh` on a GitHub Actions runner;
+	// we may need to find a way to force use of the managed version
+	fullPath, err := exec.LookPath(cmd)
+	if fullPath != "" && err == nil {
+		installed[cmd] = fullPath
+		return fullPath
+	}
+
 	if !IsManagedTool(cmd) {
 		return ""
 	}
 
-	fullPath := Install(cmd)
+	fullPath = Install(cmd)
 	installed[cmd] = fullPath
 	return fullPath
 }
@@ -59,51 +74,66 @@ func Install(cmd string) string {
 	binnyPath := ToolPath(CMD)
 	if installed[CMD] != binnyPath {
 		if !file.Exists(binnyPath) {
-			installBinny(binnyPath)
+			installBinny(binnyPath, findBinnyVersion())
 		} else if cmd != CMD && IsManagedTool(CMD) {
 			// we manage the binny updates here, because binny is not released for all platforms,
 			// and we may have to build from source
-			binnyVersion := run.Command(binnyPath, run.Args("--version"), run.Quiet())
+			binnyVersion := lang.Return(run.Command(binnyPath, run.Args("--version"), run.Quiet()))
 			binnyVersion = strings.TrimPrefix(binnyVersion, CMD)
-			if !IsManagedTool(CMD) || !isVersion(binnyVersion, binnyManaged[CMD]) {
+			if !IsManagedTool(CMD) || !matchesVersion(binnyVersion, binnyManaged[CMD]) {
 				// if binny needs to update, use our own install procedure since we may be on an unsupported platform
-				installBinny(binnyPath)
+				installBinny(binnyPath, findBinnyVersion())
 			}
 		}
 		installed[CMD] = binnyPath
+	}
+
+	// to support default versions inherited from the go-make repo itself, these need
+	// to have a config file on disk for binny to read to get versions, etc.
+	var cfg []run.Option
+	if binnyManaged[cmd] == "" && defaultVersions[cmd] != "" {
+		tmpDir, err := os.MkdirTemp(template.Render(config.TmpDir), "binny-config")
+		if err == nil {
+			defer func() {
+				log.Error(os.RemoveAll(tmpDir))
+			}()
+			configFile := lang.Continue(filepath.Abs(filepath.Join(tmpDir, "default.yaml")))
+			if configFile != "" {
+				log.Error(os.WriteFile(configFile, defaultContents, 0o600))
+				cfg = append(cfg, run.Args("-c", configFile))
+			}
+		}
 	}
 
 	toolPath := ToolPath(cmd)
 	toolDir := filepath.Dir(toolPath)
 
 	out := bytes.Buffer{}
-	run.Command(binnyPath, run.Args("install", cmd),
+	lang.Return(run.Command(binnyPath, run.Options(cfg...), run.Args("install", cmd),
 		run.Env("BINNY_LOG_LEVEL", "info"),
 		run.Env("BINNY_ROOT", toolDir),
 		run.Quiet(),
 		run.Stderr(&out),
-	)
+	))
 
 	if !strings.Contains(out.String(), "already installed") {
 		// check if binny has given us an executable without .exe on windows and copy it, if so
 		nonExe := filepath.Join(toolDir, cmd)
-		if runtime.GOOS == "windows" && nonExe != toolPath && file.Exists(nonExe) {
+		if config.Windows && nonExe != toolPath && file.Exists(nonExe) {
 			log.Error(lang.Catch(func() {
 				// older verions of binny do not create .exe files on windows
 				// TODO: fix binny to handle windows executables properly, see the fix-freebsd branch
 				file.Copy(nonExe, toolPath)
 			}))
 		}
-		log.Log("Binny installed: %v at %v", cmd, toolPath)
-		log.Debug("Binny output: %v", out.String())
+		log.Info("binny installed: %v at %v", cmd, toolPath)
+		log.Debug("    └─ output: %v", out.String())
 	}
 
 	return toolPath
 }
 
-func installBinny(binnyPath string) {
-	version := findBinnyVersion()
-
+func installBinny(binnyPath, version string) {
 	err := fetch.BinaryRelease(binnyPath, fetch.ReleaseSpec{
 		URL: "https://github.com/anchore/binny/releases/download/v{{.version}}/binny_{{.version}}_{{.os}}_{{.arch}}.{{.ext}}",
 		Args: map[string]string{
@@ -134,14 +164,24 @@ func installBinny(binnyPath string) {
 	installed["binny"] = binnyPath
 }
 
-func readBinnyYamlVersions() map[string]string {
+func readRootBinnyYaml() map[string]string {
+	rootDir := template.Render(config.RootDir)
+	binnyYaml := file.FindParent(rootDir, ".binny.yaml")
+	if binnyYaml == "" {
+		log.Debug("no .binny.yaml found in %v or any parent directory", rootDir)
+		return map[string]string{}
+	}
+	return readBinnyYamlVersions(lang.Return(os.Open(binnyYaml)))
+}
+
+func readBinnyYamlVersions(binnyConfig io.Reader) map[string]string {
 	out := map[string]string{}
-	binnyConfig := file.FindParent(template.Render(config.RootDir), ".binny.yaml")
-	if binnyConfig != "" {
+	if binnyConfig != nil {
+		if closer, _ := binnyConfig.(io.Closer); closer != nil {
+			defer lang.Close(closer, ".binny.yaml")
+		}
 		cfg := map[string]any{}
-		f := lang.Return(os.Open(binnyConfig))
-		defer lang.Close(f, binnyConfig)
-		d := yaml.NewDecoder(f)
+		d := yaml.NewDecoder(binnyConfig)
 		lang.Throw(d.Decode(&cfg))
 		tools := cfg["tools"]
 		if tools, ok := tools.([]any); ok {
@@ -161,18 +201,18 @@ func readBinnyYamlVersions() map[string]string {
 	return out
 }
 
-func findBinnyVersion() string {
-	ver := readBinnyYamlVersions()["binny"]
-	if ver != "" {
-		return ver
-	}
-	// TODO: pin to floating tag? (e.g. v0)
-	return "v0.9.0"
+func findVersion(name string) string {
+	return lang.Default(binnyManaged[name], defaultVersions[name])
 }
 
-// isVersion indicates the versionRequest is satisfied
+func findBinnyVersion() string {
+	// TODO: pin to floating tag? (e.g. v0)
+	return lang.Default(findVersion("binny"), "v0.9.0")
+}
+
+// matchesVersion indicates the versionRequest is satisfied
 // by the versionToCheck
-func isVersion(versionRequest, versionToCheck string) bool {
+func matchesVersion(versionRequest, versionToCheck string) bool {
 	if versionRequest == "" || versionToCheck == "" {
 		return false // empty versions are considered unknown
 	}
@@ -217,11 +257,9 @@ func BuildFromGoSource(file string, module, entrypoint, version string, opts ...
 	if version == "" {
 		panic(fmt.Errorf("no version specified for: %s %s %s", file, module, entrypoint))
 	}
-	log.Log("Building: %s@%s entrypoint: %s", module, version, entrypoint)
+	log.Info("Building: %s@%s entrypoint: %s", module, version, entrypoint)
 	git.InClone("https://"+module, version, func() {
 		// go build <options> -o file <entrypoint>
-		opts = append([]run.Option{run.Args("build"), run.Stderr(io.Discard)}, opts...)
-		opts = append(opts, run.Args("-o", file, "./"+entrypoint))
-		run.Command("go", opts...)
+		lang.Return(run.Command("go", run.Args("build"), run.Stderr(io.Discard), run.Options(opts...), run.Args("-o", file, "./"+entrypoint)))
 	})
 }

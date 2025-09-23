@@ -31,8 +31,10 @@ linters:
 
   settings:
     funlen:
-      lines: 70
-      statements: 50
+      lines: 100
+      statements: 60
+    gocognit:
+      min-complexity: 40
     gocritic:
       enabled-checks:
         - deferInLoop

@@ -11,13 +11,21 @@ import (
 
 var Prefix = ""
 
-var Log = func(format string, args ...any) {
-	_, _ = fmt.Fprintf(os.Stderr, Prefix+template.Render(format)+"\n", args...)
+var Info = func(format string, args ...any) {
+	if len(args) == 0 {
+		_, _ = os.Stderr.WriteString(Prefix + template.Render(format) + "\n")
+	} else {
+		_, _ = fmt.Fprintf(os.Stderr, Prefix+template.Render(format)+"\n", args...)
+	}
 }
 
 var Debug = func(format string, args ...any) {}
 
 var Trace = func(format string, args ...any) {}
+
+var Warn = func(format string, args ...any) {
+	Info(color.Yellow(format), args...)
+}
 
 // Error logs any non-nil error passed
 var Error = func(err error, args ...any) {
@@ -26,15 +34,15 @@ var Error = func(err error, args ...any) {
 		for _, arg := range args {
 			argString += fmt.Sprintf(" %v", arg)
 		}
-		Log("%v%s", err, argString)
+		Info("%v%s", err, argString)
 	}
 }
 
 func init() {
-	if config.DebugEnabled || config.TraceEnabled {
+	if config.Debug || config.Trace {
 		Debug = debugLog
 	}
-	if config.TraceEnabled {
+	if config.Trace {
 		Trace = traceLog
 	}
 }
