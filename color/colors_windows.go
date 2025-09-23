@@ -14,8 +14,10 @@ func init() {
 	fd := windows.Handle(os.Stderr.Fd()) // also do this for os.Stdout?
 	err := windows.GetConsoleMode(fd, &originalMode)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "unable to get windows console mode: %v\n", err)
 		// we may be running in bash or some other shell that doesn't SetConsoleMode
+		if os.Getenv("DEBUG") == "true" {
+			_, _ = fmt.Fprintf(os.Stderr, "unable to get windows console mode: %v\n", err)
+		}
 		return
 	}
 	if originalMode&windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING != 0 {
