@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,7 +17,7 @@ import (
 )
 
 func Test_UploadWorkflowArtifact(t *testing.T) {
-	if !config.CI {
+	if !config.CI || skipPlatform() {
 		t.Log("skipping in non-CI environment")
 		return
 	}
@@ -36,7 +37,7 @@ func Test_UploadWorkflowArtifact(t *testing.T) {
 }
 
 func _Test_DownloadBranchArtifactDir(t *testing.T) {
-	if !config.CI {
+	if !config.CI || skipPlatform() {
 		t.Log("skipping artifact upload test in non-CI environment")
 		return
 	}
@@ -55,7 +56,7 @@ func _Test_DownloadBranchArtifactDir(t *testing.T) {
 }
 
 func Test_UploadDownload(t *testing.T) {
-	if !config.CI {
+	if !config.CI || skipPlatform() {
 		t.Log("skipping in non-CI environment")
 		return
 	}
@@ -91,15 +92,7 @@ func Test_UploadDownload(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.files, func(t *testing.T) {
-			if config.Windows {
-				defer func() {
-					if r := recover(); r != nil {
-						t.Log("skipping failure on Windows")
-					}
-				}()
-			} else {
-				defer require.Test(t)
-			}
+			defer require.Test(t)
 
 			p := Payload() // tests run in workflow in github
 
@@ -155,7 +148,7 @@ func Test_UploadDownload(t *testing.T) {
 }
 
 func Test_ensureActionsArtifactNpmPackageInstalled(t *testing.T) {
-	if !config.CI {
+	if !config.CI || skipPlatform() {
 		t.Log("skipping in non-CI environment")
 		return
 	}
@@ -222,4 +215,13 @@ func Test_renderUploadFiles(t *testing.T) {
 			require.EqualElements(t, tt.expected, files)
 		})
 	}
+}
+
+func skipPlatform() bool {
+	if !config.Windows {
+		return false
+	}
+	// only run these tests on one windows runner, `windows-latest-stable` for now
+	s := matrixSuffix()
+	return strings.Contains(s, "latest") && strings.Contains(s, "stable")
 }
