@@ -121,7 +121,7 @@ func (a Api) ListArtifactsForWorkflowRun(runID int64, artifactNameGlob string) (
 }
 
 func (a Api) listWorkflowRunArtifacts(repo string, runID int64, artifactNameGlob string) ([]Artifact, error) {
-	rsp, err := get[ArtifactList](a, fmt.Sprintf("/repos/%s/actions/runs/%v/artifacts", repo, runID))
+	rsp, err := get[ArtifactList](a, "/repos/%s/actions/runs/%v/artifacts", repo, runID)
 	if err != nil {
 		return nil, err
 	}
