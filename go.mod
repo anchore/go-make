@@ -6,5 +6,5 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.9.1
 	github.com/goccy/go-yaml v1.18.0
 	golang.org/x/mod v0.28.0
-	golang.org/x/sys v0.35.0
+	golang.org/x/sys v0.36.0
 )
