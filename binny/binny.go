@@ -80,7 +80,7 @@ func Install(cmd string) string {
 			// and we may have to build from source
 			binnyVersion := lang.Return(run.Command(binnyPath, run.Args("--version"), run.Quiet()))
 			binnyVersion = strings.TrimPrefix(binnyVersion, CMD)
-			if !IsManagedTool(CMD) || !matchesVersion(binnyVersion, binnyManaged[CMD]) {
+			if !IsManagedTool(CMD) || !matchesVersion(binnyVersion, findVersion(CMD)) {
 				// if binny needs to update, use our own install procedure since we may be on an unsupported platform
 				installBinny(binnyPath, findBinnyVersion())
 			}
