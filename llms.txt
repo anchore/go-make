@@ -1,0 +1,34 @@
+# Anchore go-make
+
+go-make is a golang-based scripting utility and task runner with minimal dependencies, designed to help with common development tasks in a cross-platform manner.
+
+## Project Overview
+
+- **Purpose**: Provides a simple DSL for defining build tasks and development workflows that work consistently across platforms
+- **Language**: Go (requires Go 1.23.1+)
+- **Module**: `github.com/anchore/go-make`
+
+## Key Features
+
+- Cross-platform development utilities
+- Task runner with minimal dependencies
+- Sharable task definitions through Go modules
+- Built-in support for common tasks like linting and testing
+- Template variable support and managed executable downloads
+
+## Architecture
+
+- Tasks are defined in `.make/main.go` using the go-make DSL
+- Common task definitions are available as importable packages (e.g., `golint`, `gotest`, `release`)
+- Uses a Makefile wrapper that delegates to `go run -C .make . $@`
+- Supports task dependencies and conditional execution
+
+## Dependencies
+
+- **Required**: `go`, `git`
+- **Optional**: `docker` (or compatible CLI like `podman`) for container-based tasks
+- Additional tools managed through binny config or go.mod tools section
+
+## Usage Pattern
+
+Tasks are defined by creating a `.make/main.go` file that imports go-make and defines a Makefile with various Task definitions. Each task can specify dependencies, run conditions, and execution logic.
