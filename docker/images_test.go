@@ -111,9 +111,20 @@ func setupLocalRegistry(t *testing.T) (hostPort string) {
 	require.NoError(t, err)
 	log.Info("running registry container on port: %v", randomPort)
 	t.Cleanup(func() {
+		volumeName, err := run.Command("docker", run.Args("inspect", `--format={{(index .Mounts 0).Name}}`, registryContainerId))
+		if err != nil {
+			log.Warn("unable to find volume for container: %v %v", registryContainerId, err)
+		}
 		_, err = run.Command("docker", run.Args("rm", "-f", registryContainerId))
 		if err != nil {
-			log.Warn("unable to remove docker container: %s # %v %v", registryContainerId, err)
+			log.Warn("unable to remove docker container: %v %v", registryContainerId, err)
+		}
+		// clean up the volumes created by the registry container
+		if volumeName != "" {
+			_, err = run.Command("docker", run.Args("volume", "rm", volumeName))
+			if err != nil {
+				log.Warn("unable to remove volume: %v %v", volumeName, err)
+			}
 		}
 	})
 	// use the local registry as the cache target
