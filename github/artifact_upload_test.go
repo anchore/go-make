@@ -1,3 +1,7 @@
+//go:build nixos
+
+//this feature does not work on external runners
+
 package github
 
 import (
