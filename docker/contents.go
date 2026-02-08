@@ -23,9 +23,9 @@ var CacheDir string
 
 // ExportCached extracts the contents of the built container to a cache directory, efficiently downloading
 // previously built caches, returning the cache directory path. optionally include globs to filter the contents.
-// this function using a combination of docker and oras, the general process is:
-//   - attempt an oras pull of the cache directory, if found, cache and return this
-//   - docker buildx with output to the cache dir, with filtering
+// this function uses a combination of docker and oras, the general process is:
+//   - attempt an oras pull of the cache directory, if found, download, extract and return this
+//   - docker buildx with output to the cache dir, optionally remove files not matching globs
 //   - oras push the cache directory
 //   - return the cache directory
 func ExportCached(dockerfile string, fileGlobs ...string) string {

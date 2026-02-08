@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"net"
 	"path/filepath"
+	"runtime"
 	"testing"
 
+	"github.com/anchore/go-make/config"
 	"github.com/anchore/go-make/file"
 	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
@@ -15,6 +17,10 @@ import (
 const registryImage = "registry:3"
 
 func Test_fixtureBuildPushRestore(t *testing.T) {
+	if config.CI && runtime.GOOS == "darwin" {
+		t.Skip("skipping on macos in CI due to docker registry issues")
+	}
+
 	setupLocalRegistry(t)
 
 	// use a new tempdir as the cache root so there is no existing cache

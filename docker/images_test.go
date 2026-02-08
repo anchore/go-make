@@ -2,14 +2,20 @@ package docker
 
 import (
 	"fmt"
+	"runtime"
 	"testing"
 
+	"github.com/anchore/go-make/config"
 	"github.com/anchore/go-make/log"
 	"github.com/anchore/go-make/require"
 	"github.com/anchore/go-make/run"
 )
 
 func Test_imageBuildNoPush(t *testing.T) {
+	if config.CI && runtime.GOOS == "darwin" {
+		t.Skip("skipping on macos in CI due to docker registry issues")
+	}
+
 	setupLocalRegistry(t)
 
 	// this test should NOT push images
@@ -50,6 +56,10 @@ func Test_imageBuildNoPush(t *testing.T) {
 }
 
 func Test_imageBuildPushRestore(t *testing.T) {
+	if config.CI && runtime.GOOS == "darwin" {
+		t.Skip("skipping on macos in CI due to docker registry issues")
+	}
+
 	setupLocalRegistry(t)
 
 	// this test should push images
