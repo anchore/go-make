@@ -95,6 +95,15 @@ func IsDir(dir string) bool {
 	return s.IsDir()
 }
 
+// IsEmpty indicates the provided directory is empty or does not exist
+func IsEmpty(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return true
+	}
+	return len(entries) == 0
+}
+
 // EnsureDir checks if the directory exists. create if not, including any subdirectories needed
 // and returns the absolute path to the directory
 func EnsureDir(dir string) string {
@@ -194,7 +203,10 @@ func JoinPaths(paths ...string) string {
 }
 
 func streamFile(file string, writer io.Writer) {
-	f := lang.Return(os.Open(file))
+	f, err := os.Open(file)
+	if err != nil {
+		panic(err)
+	}
 	defer lang.Close(f, file)
 	_ = lang.Return(io.Copy(writer, f))
 }

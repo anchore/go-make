@@ -15,6 +15,14 @@ tools:
     with:
       repo: golangci/golangci-lint
 
+  # used for docker fixture cache operations
+  - name: oras
+    version:
+      want: v1.3.0
+    method: github-release
+    with:
+      repo: oras-project/oras
+
   # used for organizing imports during static analysis
   - name: gosimports
     version:
