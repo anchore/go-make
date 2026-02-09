@@ -50,7 +50,7 @@ func build(absDockerfile, imageName string) (containerId string, err error) {
 	log.Info("cache miss, building: %s", imageName)
 	return run.Command("docker",
 		// should this have other args by default, like --no-cache ?
-		run.Args("build", "-t", imageName, "-f", filepath.Base(absDockerfile), "."),
+		run.Args("build", "--tag", imageName, "--file", filepath.Base(absDockerfile), "."),
 		run.InDir(filepath.Dir(absDockerfile)),
 	)
 }

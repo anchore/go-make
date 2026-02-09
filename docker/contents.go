@@ -58,7 +58,7 @@ func ExportCached(dockerfile string, fileGlobs ...string) string {
 	}
 
 	// can't find the cache, build locally
-	buildx(absDockerfile, cacheDir)
+	buildToDir(absDockerfile, cacheDir)
 
 	// filter files to matching globs, if specified
 	if len(fileGlobs) > 0 {
@@ -81,12 +81,12 @@ func ExportCached(dockerfile string, fileGlobs ...string) string {
 	panic(fmt.Errorf("unable to pull or build fixture image: %v, %w", imageName, err))
 }
 
-func buildx(absDockerfile, cacheDir string) {
+func buildToDir(absDockerfile, cacheDir string) {
 	log.Info("cache miss, building with docker buildx: %s", absDockerfile)
 	// docker buildx build command with the --output flag and the type=local
 	lang.Return(run.Command("docker",
 		// should this have other args by default, like --no-cache ?
-		run.Args("buildx", "build", "-f", filepath.Base(absDockerfile), "--output", "type=local,dest="+cacheDir, "."),
+		run.Args("buildx", "build", "--output", "type=local,dest="+cacheDir, "--file", filepath.Base(absDockerfile), "."),
 		run.InDir(filepath.Dir(absDockerfile)),
 	))
 }

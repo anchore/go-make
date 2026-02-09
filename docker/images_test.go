@@ -2,6 +2,7 @@ package docker
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"testing"
 
@@ -114,29 +115,40 @@ func captureLogs(t *testing.T) *string {
 // setupLocalRegistry sets up a local registry and temporarily for the duration of the test sets the CachePrefix so operations will
 // use the local registry instead of ghcr.io
 func setupLocalRegistry(t *testing.T) (hostPort string) {
+	testRegistry := os.Getenv("TEST_REGISTRY")
+	if testRegistry != "" {
+		log.Info("using preconfigured registry at: %s", testRegistry)
+		require.SetAndRestore(t, &CachePrefix, testRegistry)
+		return testRegistry
+	}
+
 	// set up a real registry we use to verify push/restore behavior:
 	randomPort := findRandomPort()
 
-	registryContainerId, err := run.Command("docker", run.Args("run", "--platform", "linux/amd64", "--rm", "-d", "-p", fmt.Sprintf("%v:5000", randomPort), registryImage))
+	const registryImage = "registry:3"
+
+	registryContainerId, err := run.Command("docker", run.Args("container", "run",
+		"--platform", "linux",
+		"--rm",
+		"--env", "REGISTRY_STORAGE=inmemory",
+		"--detach",
+		"--publish", fmt.Sprintf("%v:5000", randomPort),
+		registryImage))
 	require.NoError(t, err)
+
 	log.Info("running registry container on port: %v", randomPort)
 	t.Cleanup(func() {
-		volumeName, err := run.Command("docker", run.Args("inspect", `--format={{(index .Mounts 0).Name}}`, registryContainerId))
+		_, err = run.Command("docker", run.Args("container", "stop", "--signal", "9", registryContainerId))
 		if err != nil {
-			log.Warn("unable to find volume for container: %v %v", registryContainerId, err)
-		}
-		_, err = run.Command("docker", run.Args("rm", "-f", registryContainerId))
-		if err != nil {
-			log.Warn("unable to remove docker container: %v %v", registryContainerId, err)
-		}
-		// clean up the volumes created by the registry container
-		if volumeName != "" {
-			_, err = run.Command("docker", run.Args("volume", "rm", volumeName))
+			log.Warn("unable to stop docker container: %v %v", registryContainerId, err)
+
+			_, err = run.Command("docker", run.Args("rm", "--force", registryContainerId))
 			if err != nil {
-				log.Warn("unable to remove volume: %v %v", volumeName, err)
+				log.Warn("unable to remove docker container: %v %v", registryContainerId, err)
 			}
 		}
 	})
+
 	// use the local registry as the cache target
 	hostPort = fmt.Sprintf("localhost:%v", randomPort)
 	require.SetAndRestore(t, &CachePrefix, hostPort)

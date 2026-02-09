@@ -14,8 +14,6 @@ import (
 	"github.com/anchore/go-make/require"
 )
 
-const registryImage = "registry:3"
-
 func Test_fixtureBuildPushRestore(t *testing.T) {
 	if config.CI && runtime.GOOS == "darwin" {
 		t.Skip("skipping on macos in CI due to docker registry issues")
