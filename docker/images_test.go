@@ -117,7 +117,7 @@ func setupLocalRegistry(t *testing.T) (hostPort string) {
 	// set up a real registry we use to verify push/restore behavior:
 	randomPort := findRandomPort()
 
-	registryContainerId, err := run.Command("docker", run.Args("run", "--rm", "-d", "-p", fmt.Sprintf("%v:5000", randomPort), registryImage))
+	registryContainerId, err := run.Command("docker", run.Args("run", "--platform", "linux/amd64", "--rm", "-d", "-p", fmt.Sprintf("%v:5000", randomPort), registryImage))
 	require.NoError(t, err)
 	log.Info("running registry container on port: %v", randomPort)
 	t.Cleanup(func() {
