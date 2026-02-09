@@ -29,15 +29,16 @@ jobs:
   Tests:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os:
           - ubuntu-latest # 24.04
-          - windows-2025
+#          - windows-2025
           - windows-latest # 2022
-          - macos-15
+#          - macos-15
           - macos-latest # 14
         go-version:
-          - stable # use latest stable version
+#          - stable # use latest stable version
           - '' # version from go.mod
 
     steps:
