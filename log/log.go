@@ -48,9 +48,17 @@ func init() {
 }
 
 func debugLog(format string, args ...any) {
-	_, _ = fmt.Fprintf(os.Stderr, Prefix+color.Grey(template.Render(format))+"\n", args...)
+	if len(args) == 0 {
+		_, _ = fmt.Fprint(os.Stderr, Prefix+color.Grey(template.Render(format))+"\n")
+	} else {
+		_, _ = fmt.Fprintf(os.Stderr, Prefix+color.Grey(template.Render(format))+"\n", args...)
+	}
 }
 
 func traceLog(format string, args ...any) {
-	_, _ = fmt.Fprintf(os.Stderr, Prefix+color.Grey(template.Render(format))+"\n", args...)
+	if len(args) == 0 {
+		_, _ = fmt.Fprint(os.Stderr, Prefix+color.Grey(template.Render(format))+"\n")
+	} else {
+		_, _ = fmt.Fprintf(os.Stderr, Prefix+color.Grey(template.Render(format))+"\n", args...)
+	}
 }
