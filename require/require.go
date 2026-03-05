@@ -8,6 +8,10 @@ import (
 	"testing"
 )
 
+// Test is a helper that handles panic behavior, use it like:
+// ```
+// defer require.Test(t)
+// ```
 func Test(t *testing.T) {
 	t.Helper()
 	if r := recover(); r != nil {
@@ -49,6 +53,9 @@ func NoError(t *testing.T, err error) {
 
 func Contains(t *testing.T, values any, value any) {
 	t.Helper()
+	if e, ok := values.(error); ok {
+		values = e.Error()
+	}
 	if value, ok := value.(string); ok {
 		if values, ok := values.(string); ok && strings.Contains(values, value) {
 			return
@@ -60,20 +67,39 @@ func Contains(t *testing.T, values any, value any) {
 	t.Fatalf("error: %v not contained in %v", value, values)
 }
 
+func NotContains(t *testing.T, values any, value any) {
+	t.Helper()
+	if e, ok := values.(error); ok {
+		values = e.Error()
+	}
+	if value, ok := value.(string); ok {
+		if values, ok := values.(string); ok && !strings.Contains(values, value) {
+			return
+		}
+		if values, ok := values.([]string); ok && !slices.Contains(values, value) {
+			return
+		}
+	}
+	t.Fatalf("error: %v contained in %v", value, values)
+}
+
 func Equal(t *testing.T, expected, actual any) {
 	t.Helper()
-	v1 := reflect.ValueOf(expected)
-	if !v1.Comparable() {
-		if reflect.DeepEqual(expected, actual) {
-			return
-		}
-		if fmt.Sprintf("%#v", expected) == fmt.Sprintf("%#v", actual) {
-			return
-		}
-	} else if expected == actual {
-		return
+	if !isEqual(expected, actual) {
+		t.Fatalf("not equal\nexpected: \"%v\"\n     got: \"%v\"", expected, actual)
 	}
-	t.Fatalf("not equal\nexpected: \"%v\"\n     got: \"%v\"", expected, actual)
+}
+
+func NotEmpty(t *testing.T, value any) {
+	t.Helper()
+	switch v := value.(type) {
+	case string:
+		if v == "" {
+			t.Fatalf("expected not to be empty")
+		}
+	default:
+		t.Fatalf("unsupported type: %T", value)
+	}
 }
 
 func EqualElements[T comparable](t *testing.T, expected, actual []T) {
@@ -102,4 +128,19 @@ func SetAndRestore[T any](t *testing.T, ptrToVar *T, newValue T) {
 		*ptrToVar = origValue
 	})
 	*ptrToVar = newValue
+}
+
+func isEqual(expected any, actual any) bool {
+	v1 := reflect.ValueOf(expected)
+	if !v1.Comparable() {
+		if reflect.DeepEqual(expected, actual) {
+			return true
+		}
+		if fmt.Sprintf("%#v", expected) == fmt.Sprintf("%#v", actual) {
+			return true
+		}
+	} else if expected == actual {
+		return true
+	}
+	return false
 }
