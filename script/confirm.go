@@ -10,6 +10,8 @@ import (
 )
 
 // Confirm prompts the user for a single keypress of y for yes or cancels
+//
+//nolint:goprintffuncname
 func Confirm(format string, args ...any) {
 	for {
 		log.Info(format+" [y/n]", args...)
