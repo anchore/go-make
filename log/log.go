@@ -40,17 +40,17 @@ var Error = func(err error, args ...any) {
 
 func init() {
 	if config.Debug || config.Trace {
-		Debug = debugLog
+		Debug = debugLogf
 	}
 	if config.Trace {
-		Trace = traceLog
+		Trace = traceLogf
 	}
 }
 
-func debugLog(format string, args ...any) {
+func debugLogf(format string, args ...any) {
 	_, _ = fmt.Fprintf(os.Stderr, Prefix+color.Grey(template.Render(format))+"\n", args...)
 }
 
-func traceLog(format string, args ...any) {
+func traceLogf(format string, args ...any) {
 	_, _ = fmt.Fprintf(os.Stderr, Prefix+color.Grey(template.Render(format))+"\n", args...)
 }
