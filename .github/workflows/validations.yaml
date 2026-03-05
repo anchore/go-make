@@ -10,6 +10,9 @@ on:
     # run once per week so we always have an artifact for testing and get notified of new versions causing issues
     - cron: 0 0 * * 0
 
+permissions:
+  contents: read
+
 jobs:
   Static-Analysis:
     runs-on: ubuntu-latest
