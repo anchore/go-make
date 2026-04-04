@@ -40,12 +40,14 @@ func GenerateAndShowChangelog() (changelogFilePath, versionFilePath string) {
 	ghAuthToken := Run("gh auth token")
 	log.Debug("Auth token: %.10s...", ghAuthToken)
 
-	// Run("chronicle -n --version-file", run.Args(versionFile), run.Write(changelogFile), run.Env("GITHUB_TOKEN", ghAuthToken))
 	changelog := Run("chronicle -n --version-file", run.Args(versionFile), run.Env("GITHUB_TOKEN", ghAuthToken))
 
-	// changelog := file.Read(changelogFile)
+	file.Write(changelogFile, changelog)
+
+	// render the changelog with glow if available
 	if binny.IsManagedTool("glow") {
-		changelog = Run(fmt.Sprintf(`glow -w 0 %s`, changelogFile))
+		// without -s dark, it will defailt to no style since it cannot detect a tty with this approach
+		changelog = Run(fmt.Sprintf(`glow -s dark -w 0 %s`, changelogFile))
 	}
 	lang.Return(os.Stderr.WriteString(changelog))
 
