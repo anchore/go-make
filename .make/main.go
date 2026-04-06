@@ -12,6 +12,6 @@ func main() {
 		golint.Tasks(),
 		gotest.Tasks(),
 		release.ChangelogTask(),
-		release.GhReleaseTask(),
+		release.GhCIReleaseTask(),
 	)
 }
