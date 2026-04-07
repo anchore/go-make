@@ -244,7 +244,7 @@ func shortenedArgs(args []string) []string {
 	const maxLen = 16
 	var out []string
 	for _, arg := range args {
-		if len(out) > maxLen {
+		if len(out) > maxLen && len(arg) > maxLen {
 			arg = arg[:maxLen]
 		}
 		out = append(out, arg)

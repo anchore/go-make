@@ -34,7 +34,7 @@ func Copy(src, dst string) {
 	perms := lang.Return(os.Stat(src)).Mode()
 	contents := lang.Return(os.ReadFile(src))
 	EnsureDir(filepath.Dir(dst))
-	lang.Throw(os.WriteFile(dst, contents, perms))
+	lang.Throw(os.WriteFile(dst, contents, perms)) //nolint:gosec // G703: dst is caller-controlled build utility path
 }
 
 // Delete removes the given file or directory, first verifying it is a subdirectory of RootDir

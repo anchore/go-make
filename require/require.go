@@ -22,6 +22,20 @@ func True(t *testing.T, check bool) {
 	}
 }
 
+func False(t *testing.T, check bool) {
+	t.Helper()
+	if check {
+		t.Fatalf("TEST FAILED: expected false value")
+	}
+}
+
+func NotEmpty(t *testing.T, value string) {
+	t.Helper()
+	if value == "" {
+		t.Fatalf("TEST FAILED: expected non-empty string")
+	}
+}
+
 type ValidationError func(t *testing.T, err error)
 
 func (v ValidationError) Validate(t *testing.T, err error) {

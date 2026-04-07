@@ -16,7 +16,7 @@ func DosToUnix(glob string) {
 		contents = bytes.ReplaceAll(contents, []byte("\r"), []byte(""))
 		if len(contents) != orig {
 			log.Debug("dos2unix: ", file)
-			lang.Throw(os.WriteFile(file, contents, perms.Mode()))
+			lang.Throw(os.WriteFile(file, contents, perms.Mode())) //nolint:gosec // G703: path comes from glob expansion, not user input
 		} else {
 			log.Trace("dos2unix skipping: ", file)
 		}

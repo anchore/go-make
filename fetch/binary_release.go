@@ -14,7 +14,6 @@ import (
 
 	"github.com/anchore/go-make/file"
 	"github.com/anchore/go-make/lang"
-	"github.com/anchore/go-make/log"
 	"github.com/anchore/go-make/template"
 )
 
@@ -36,8 +35,6 @@ type ReleaseSpec struct {
 
 func BinaryRelease(toolPath string, spec ReleaseSpec) error {
 	url := spec.render(runtime.GOOS, runtime.GOARCH)
-
-	log.Info("Downloading: %v", url)
 
 	buf := bytes.Buffer{}
 	_, err := Fetch(url, Writer(&buf))

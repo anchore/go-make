@@ -21,7 +21,7 @@ func Context() context.Context {
 func SetContext(ctx context.Context) {
 	contextLock.Lock()
 	defer contextLock.Unlock()
-	currentContext, cancel = context.WithCancel(ctx)
+	currentContext, cancel = context.WithCancel(ctx) //nolint:gosec // G118: cancel is called in Cancel() function below
 }
 
 // Cancel cancels any currently executing scripts, which used the current context
@@ -29,5 +29,5 @@ func Cancel() {
 	contextLock.Lock()
 	defer contextLock.Unlock()
 	cancel()
-	currentContext, cancel = context.WithCancel(context.Background())
+	currentContext, cancel = context.WithCancel(context.Background()) //nolint:gosec // G118: cancel is called on next Cancel() invocation
 }

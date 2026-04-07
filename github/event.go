@@ -45,16 +45,16 @@ func Payload() Event {
 	envLoad(&out)
 	ciEventFile := os.Getenv("GITHUB_EVENT_PATH")
 	if ciEventFile != "" {
-		f := lang.Return(os.Open(ciEventFile))
+		f := lang.Return(os.Open(ciEventFile)) //nolint:gosec // G703: path from GITHUB_EVENT_PATH env var set by CI runner
 		defer lang.Close(f, ciEventFile)
 		err := json.NewDecoder(f).Decode(&out)
 		if err == nil {
 			if config.Debug {
-				log.Debug("event:\n%s", log.FormatJSON(string(lang.Continue(os.ReadFile(ciEventFile)))))
+				log.Debug("event:\n%s", log.FormatJSON(string(lang.Continue(os.ReadFile(ciEventFile))))) //nolint:gosec // G703: same trusted path
 			}
 			return out
 		} else {
-			log.Debug(" %v %v; contents:\n%v", ciEventFile, err, log.FormatJSON(string(lang.Continue(os.ReadFile(ciEventFile)))))
+			log.Debug(" %v %v; contents:\n%v", ciEventFile, err, log.FormatJSON(string(lang.Continue(os.ReadFile(ciEventFile))))) //nolint:gosec // G703: same trusted path
 		}
 	}
 	return out
