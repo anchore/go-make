@@ -111,7 +111,7 @@ func runTaskFile(tasks ...Task) {
 				log.Debug("ENV: %v", os.Environ())
 				ciEventFile := os.Getenv("GITHUB_EVENT_PATH")
 				if ciEventFile != "" {
-					log.Debug("GitHub Action event:\n%s", log.FormatJSON(string(lang.Continue(os.ReadFile(ciEventFile)))))
+					log.Debug("GitHub Action event:\n%s", log.FormatJSON(string(lang.Continue(os.ReadFile(ciEventFile))))) //nolint:gosec // G703: path from GITHUB_EVENT_PATH env var set by CI runner
 				}
 			},
 		},

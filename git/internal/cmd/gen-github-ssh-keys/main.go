@@ -83,7 +83,7 @@ func run() error {
 	}
 	outputPath := filepath.Join(filepath.Dir(thisFile), outputFile)
 
-	if err := os.WriteFile(outputPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(outputPath, []byte(content), 0644); err != nil { //nolint:gosec // G306: known_hosts contains public keys, 0644 is appropriate
 		return fmt.Errorf("writing %s: %w", outputPath, err)
 	}
 
