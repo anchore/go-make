@@ -207,7 +207,7 @@ func findVersion(name string) string {
 
 func findBinnyVersion() string {
 	// TODO: pin to floating tag? (e.g. v0)
-	return lang.Default(findVersion("binny"), "v0.9.0")
+	return lang.Default(findVersion("binny"), "v0.13.0")
 }
 
 // matchesVersion indicates the versionRequest is satisfied
