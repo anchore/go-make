@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/anchore/go-make/log"
 	"github.com/anchore/go-make/run"
@@ -98,7 +99,7 @@ func parseSSHAgentOutput(output string) (authSock string, agentPID int, err erro
 }
 
 // killSSHAgent attempts to kill the ssh-agent process. It logs but does not fail on errors
-// since the agent may have already exited.
+// since the agent may have already exited. Uses SIGTERM first, then SIGKILL as fallback.
 func killSSHAgent(pid int) {
 	if pid <= 0 {
 		return
@@ -109,5 +110,19 @@ func killSSHAgent(pid int) {
 		if err != syscall.ESRCH {
 			log.Debug("failed to kill ssh-agent: %v", err)
 		}
+		return
+	}
+
+	// wait briefly for graceful termination, then SIGKILL if still running
+	for i := 0; i < 10; i++ {
+		time.Sleep(10 * time.Millisecond)
+		if err := syscall.Kill(pid, 0); err == syscall.ESRCH {
+			return // process exited
+		}
+	}
+
+	// process still running, force kill
+	if err := syscall.Kill(pid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
+		log.Debug("failed to SIGKILL ssh-agent: %v", err)
 	}
 }

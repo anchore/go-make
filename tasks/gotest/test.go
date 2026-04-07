@@ -35,6 +35,9 @@ func Tasks(options ...Option) Task {
 			if cfg.Verbose {
 				args = append(args, "-v")
 			}
+			if cfg.RunFilter != "" {
+				args = append(args, "-run", cfg.RunFilter)
+			}
 			args = append(args, selectPackages(cfg.IncludeGlob, cfg.ExcludeGlob)...)
 
 			coverageFile := cfg.CoverageFile
@@ -52,7 +55,12 @@ func Tasks(options ...Option) Task {
 					}
 				}
 				args = append(args, "-coverprofile", coverageFile)
-				args = append(args, "-covermode=atomic", "-coverpkg=./...", "-tags=coverage")
+				args = append(args, "-covermode=atomic", "-coverpkg=./...")
+				// add coverage tag to existing tags
+				cfg.Tags = append(cfg.Tags, "coverage")
+			}
+			if len(cfg.Tags) > 0 {
+				args = append(args, "-tags="+strings.Join(cfg.Tags, ","))
 			}
 
 			if cfg.Race {
@@ -105,6 +113,8 @@ type Config struct {
 	Coverage     bool
 	CoverageFile string
 	Race         bool
+	Tags         []string
+	RunFilter    string
 }
 
 func defaultConfig() Config {
@@ -139,6 +149,24 @@ func ExcludeGlob(packages string) Option {
 func Verbose() Option {
 	return func(c *Config) {
 		c.Verbose = true
+	}
+}
+
+func NoCoverage() Option {
+	return func(c *Config) {
+		c.Coverage = false
+	}
+}
+
+func Tags(tags ...string) Option {
+	return func(c *Config) {
+		c.Tags = append(c.Tags, tags...)
+	}
+}
+
+func RunFilter(filter string) Option {
+	return func(c *Config) {
+		c.RunFilter = filter
 	}
 }
 
