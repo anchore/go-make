@@ -7,10 +7,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/anchore/go-make/color"
@@ -90,31 +88,13 @@ func Command(cmd string, opts ...Option) (string, error) {
 	// print out c.Env -- GOROOT vs GOBIN
 	log.Trace("ENV: %v", c.Env)
 
-	// forward process end signals
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt, syscall.SIGTERM) // , syscall.SIGQUIT)
-	go func() {
-		defer signal.Stop(signals)
-		for sig := range signals {
-			// SIGABRT is sent when the process ends normally, so we don't wait further
-			if sig == syscall.SIGABRT {
-				break
-			}
-			if c.Process != nil {
-				log.Error(c.Process.Signal(sig))
-			}
-		}
-	}()
-
-	// WaitDelay specifies the time to wait after the process completes before continuing
+	// WaitDelay specifies the time to wait after context cancellation (and the Cancel func
+	// being called) before force-killing the process.
 	c.WaitDelay = 11 * time.Second
 	osExecOpts(c)
 
 	// execute
 	err := c.Run()
-
-	// this will cause the signal listener to proceed and stop waiting on other signals
-	signals <- syscall.SIGABRT
 
 	exitCode := 0
 	if c.ProcessState != nil {

@@ -55,6 +55,7 @@ func (t Task) RunOn(tasks ...string) Task {
 // as per the Task behavior declared above
 func Makefile(tasks ...Task) {
 	defer config.DoExit()
+	run.HandleSignals()
 	if config.Debug {
 		run.PeriodicStackTraces(run.Backoff(30 * time.Second))
 	}
