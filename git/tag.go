@@ -20,8 +20,10 @@ import (
 //go:embed internal/cmd/gen-github-ssh-keys/known_hosts
 var githubSSHKnownHosts string
 
-// CreateTag creates an annotated tag locally without pushing.
-// Returns the commit SHA that was tagged.
+// CreateTag creates an annotated git tag locally without pushing to remote.
+// Temporarily modifies git user.name and user.email for the tag, then restores
+// the original configuration. Returns the commit SHA that was tagged.
+// Panics if the tag already exists locally or if validation fails.
 func CreateTag(cfg CreateTagConfig) string {
 	cfg.validate()
 
@@ -60,6 +62,10 @@ func CreateTag(cfg CreateTagConfig) string {
 }
 
 // PushTag pushes an existing local tag to the remote using SSH with a deploy key.
+// Sets up a temporary SSH agent with the deploy key, configures GitHub's known_hosts
+// for MITM protection, and temporarily changes the remote URL to SSH format.
+// All git configuration changes are restored after the push completes.
+// Panics if the tag doesn't exist locally or already exists on the remote.
 func PushTag(cfg PushTagConfig) {
 	cfg.validate()
 

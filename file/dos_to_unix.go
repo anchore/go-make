@@ -8,6 +8,9 @@ import (
 	"github.com/anchore/go-make/log"
 )
 
+// DosToUnix converts all files matching the glob pattern from DOS/Windows line
+// endings (CRLF) to Unix line endings (LF). Files that don't contain CRLF are
+// skipped. Preserves file permissions.
 func DosToUnix(glob string) {
 	for _, file := range FindAll(glob) {
 		perms := lang.Return(os.Stat(file))

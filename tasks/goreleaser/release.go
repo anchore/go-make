@@ -15,6 +15,8 @@ import (
 
 const configName = ".goreleaser.yaml"
 
+// Tasks creates the complete release task group including snapshot builds,
+// CI releases, and workflow triggers.
 func Tasks() Task {
 	return Task{
 		Tasks: []Task{
@@ -25,6 +27,9 @@ func Tasks() Task {
 	}
 }
 
+// CIReleaseTask creates a task for running goreleaser in CI environments.
+// Requires CI=true, a version tag on HEAD, and optional quill/syft tools
+// for signing and SBOM generation.
 func CIReleaseTask() Task {
 	return Task{
 		Name:         "ci-release",

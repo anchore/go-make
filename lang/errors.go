@@ -11,26 +11,34 @@ import (
 	"github.com/anchore/go-make/log"
 )
 
-// Throw panics if the provided error is non-nil
+// Throw panics if the provided error is non-nil. This is the fundamental error
+// handling primitive in go-make - errors cause immediate task failure with a
+// stack trace pointing to the source.
 func Throw(e error) {
 	if e != nil {
 		panic(e)
 	}
 }
 
-// OkError is used to proceed normally
+// OkError is a sentinel error that indicates successful completion. When caught
+// by HandleErrors, it exits cleanly without printing an error message.
 type OkError struct{}
 
 func (o *OkError) Error() string {
 	return "OK"
 }
 
-// StackTraceError provides nicer stack information
+// StackTraceError wraps an error with additional context for better error reporting.
+// It captures the stack trace at creation time and can include additional log output.
 type StackTraceError struct {
-	Err      error
+	// Err is the underlying error.
+	Err error
+	// ExitCode is the exit code to use when this error causes program termination.
 	ExitCode int
-	Stack    []string
-	Log      string
+	// Stack contains the filtered stack trace lines.
+	Stack []string
+	// Log contains additional output (e.g., stdout/stderr) to display with the error.
+	Log string
 }
 
 func (s *StackTraceError) Unwrap() error {
@@ -53,7 +61,14 @@ func (s *StackTraceError) WithLog(log string) *StackTraceError {
 
 var _ error = (*StackTraceError)(nil)
 
-// HandleErrors is a utility to make errors and error codes handled prettier
+// HandleErrors is the main panic recovery handler for go-make. It should be deferred
+// at the start of task execution to catch panics and display formatted error messages.
+// This is automatically called by Makefile() - you typically don't need to call it directly.
+//
+// Behavior:
+//   - OkError: exits cleanly without error output
+//   - StackTraceError: prints formatted error with stack trace, exits with ExitCode
+//   - Other panics: prints error with stack trace, exits with code 1
 func HandleErrors() {
 	v := recover()
 	if v == nil {
@@ -83,7 +98,17 @@ func formatError(format string, args ...any) string {
 	return color.BgRed(color.White(format+" ", args...))
 }
 
-// Catch handles panic values and returns any error caught
+// Catch executes fn and recovers from any panic, returning the panic value as an error.
+// Use this to attempt operations that might fail without stopping the entire build.
+//
+// Example:
+//
+//	err := lang.Catch(func() {
+//	    Run(`optional-command`)
+//	})
+//	if err != nil {
+//	    log.Debug("optional command failed: %v", err)
+//	}
 func Catch(fn func()) (err error) {
 	defer func() {
 		if v := recover(); v != nil {

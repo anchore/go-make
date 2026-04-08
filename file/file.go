@@ -37,7 +37,9 @@ func Copy(src, dst string) {
 	lang.Throw(os.WriteFile(dst, contents, perms)) //nolint:gosec // G703: dst is caller-controlled build utility path
 }
 
-// Delete removes the given file or directory, first verifying it is a subdirectory of RootDir
+// Delete removes the given file or directory recursively. As a safety measure,
+// it verifies the path is under RootDir before deletion to prevent accidental
+// deletion of files outside the project. Panics if the path is outside RootDir.
 func Delete(path string) {
 	dirToRm := lang.Return(filepath.Abs(path))
 	rootDir := lang.Return(filepath.Abs(template.Render(config.RootDir)))
@@ -62,7 +64,9 @@ func InDir(dir string, run func()) {
 	run()
 }
 
-// WithTempDir creates a temporary directory, provided for the duration of the function call, removing all contents upon completion
+// WithTempDir creates a temporary directory and passes it to the provided function.
+// The directory is automatically deleted when the function returns, unless config.Cleanup
+// is false (which happens in Debug mode or CI environments for debugging purposes).
 func WithTempDir(fn func(dir string)) {
 	tmp := lang.Return(os.MkdirTemp(config.TmpDir, "buildtools-tmp-"))
 	if config.Cleanup {
@@ -120,7 +124,11 @@ func IsRegular(name string) bool {
 	return !s.IsDir() && s.Mode()&os.ModeSymlink == 0
 }
 
-// Fingerprint hashes all files and provides a stable hash of all the contents
+// Fingerprint computes an MD5 hash of all files matching the given glob patterns.
+// Files are sorted before hashing to ensure a stable, reproducible result. Useful
+// for cache invalidation or detecting changes in a set of files.
+//
+// Supports doublestar glob syntax (e.g., "**/*.go" for recursive matching).
 func Fingerprint(globs ...string) string {
 	var files []string
 	for _, glob := range globs {
@@ -151,12 +159,20 @@ func Require(file string) {
 	}
 }
 
-// FindAll finds all matching files given a glob expression
+// FindAll returns all files matching the given glob pattern. Uses the doublestar
+// library, supporting "**" for recursive directory matching.
+//
+// Example:
+//
+//	FindAll("**/*.go")           // all Go files recursively
+//	FindAll("cmd/**/main.go")    // main.go files under cmd/
 func FindAll(glob string) []string {
 	return lang.Return(doublestar.FilepathGlob(glob, doublestar.WithFilesOnly()))
 }
 
-// FindParent finds the first matching file in the specified directory or any parent directory
+// FindParent traverses up the directory tree from dir, looking for a file matching
+// the glob pattern. Returns the first match found, or an empty string if none found.
+// Useful for finding config files like .binny.yaml or .git in parent directories.
 func FindParent(dir string, glob string) string {
 	for {
 		f := filepath.Join(dir, glob)

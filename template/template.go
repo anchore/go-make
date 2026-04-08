@@ -8,6 +8,14 @@ import (
 	"github.com/anchore/go-make/config"
 )
 
+// Globals is a map of template variables available in all Render calls.
+// Built-in variables include ToolDir, RootDir, OS, and Arch. Packages can
+// add their own globals (e.g., git package adds GitRoot).
+//
+// To add custom variables:
+//
+//	template.Globals["Version"] = func() string { return "1.0.0" }
+//	template.Globals["BuildTime"] = time.Now().Format(time.RFC3339)
 var Globals = map[string]any{}
 
 func init() {
@@ -17,6 +25,14 @@ func init() {
 	Globals["Arch"] = renderFunc(&config.Arch)
 }
 
+// Render processes a Go template string, substituting variables from Globals
+// and any additional context maps provided. Variables can be values or functions
+// (which are called during rendering).
+//
+// Example:
+//
+//	Render("{{RootDir}}/.tool/{{OS}}_{{Arch}}")
+//	Render("Hello {{.Name}}", map[string]any{"Name": "World"})
 func Render(template string, args ...map[string]any) string {
 	context := map[string]any{}
 	for k, v := range Globals {

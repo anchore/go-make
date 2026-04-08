@@ -32,6 +32,13 @@ func runSnapshot(extraArgs ...string) {
 	})
 }
 
+// SnapshotTasks creates tasks for building snapshot (non-release) builds with goreleaser.
+// Snapshot builds skip publishing and signing, useful for testing the release process locally.
+//
+// Created tasks:
+//   - snapshot: builds for all configured targets
+//   - snapshot:single-target: builds for current OS/arch only (faster)
+//   - snapshots:clean: removes the snapshot output directory
 func SnapshotTasks() Task {
 	return Task{
 		Name:         "snapshot",

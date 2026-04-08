@@ -29,8 +29,10 @@ func init() {
 	}
 }
 
+// Option extends run.Option for lint-specific configuration.
 type Option run.Option
 
+// SkipTests excludes test files from linting by adding --tests=false to golangci-lint.
 func SkipTests() Option {
 	return func(ctx context.Context, cmd *exec.Cmd) error {
 		if strings.Contains(cmd.Args[0], "golangci-lint") {
@@ -40,6 +42,8 @@ func SkipTests() Option {
 	}
 }
 
+// Tasks creates the standard linting and formatting task group.
+// Includes static-analysis, format, and lint-fix tasks.
 func Tasks(options ...Option) Task {
 	return Task{
 		Tasks: []Task{
@@ -50,6 +54,9 @@ func Tasks(options ...Option) Task {
 	}
 }
 
+// StaticAnalysisTask creates a task that runs golangci-lint and bouncer for
+// license checking. Also verifies go.mod is tidy (Go 1.23+) and checks for
+// problematic filenames (containing ':').
 func StaticAnalysisTask(options ...Option) Task {
 	return Task{
 		Name:        "static-analysis",
@@ -79,6 +86,8 @@ func hasModTidyDiff() bool {
 	return lang.Return(strconv.Atoi(parts[1])) >= 23
 }
 
+// FormatTask creates a task that formats Go code using gofmt and gosimports,
+// and runs go mod tidy. gosimports groups local imports based on the module path.
 func FormatTask() Task {
 	return Task{
 		Name:        "format",
@@ -95,6 +104,8 @@ func FormatTask() Task {
 	}
 }
 
+// LintFixTask creates a task that formats code and then runs golangci-lint
+// with the --fix flag to automatically fix linting issues where possible.
 func LintFixTask(options ...Option) Task {
 	return Task{
 		Name:         "lint-fix",

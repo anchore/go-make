@@ -19,20 +19,34 @@ import (
 
 const GB = 1024 * 1024 * 1024
 
+// MaxFileSize is the maximum allowed size for extracted files (default 2GB).
+// This is a safety limit to prevent zip bombs or accidental extraction of huge files.
 var MaxFileSize = 2 * GB
 
+// ReleaseSpec defines how to download and extract a binary release from a URL.
+// The URL is a Go template that can reference variables from Args, Platform,
+// and the built-in {{os}} and {{arch}} values.
 type ReleaseSpec struct {
-	// URL is the URL template to use, with replacements from Args and Platform
+	// URL is the URL template for downloading. Built-in variables include:
+	//   - {{os}}: runtime.GOOS (e.g., "linux", "darwin", "windows")
+	//   - {{arch}}: runtime.GOARCH (e.g., "amd64", "arm64")
+	// Additional variables can be defined in Args and Platform.
 	URL string
 
-	// Args are the default arguments to replace in the URL template
+	// Args provides default template values for all platforms.
 	Args map[string]string
 
-	// Platform are platform-specific arguments to override default args when executing on the named platform,
-	// this also supports architecture, e.g. `windows/arm64`
+	// Platform provides platform-specific overrides for Args. Keys can be:
+	//   - OS only: "linux", "darwin", "windows"
+	//   - Arch only with wildcard: "*/arm64", "*/amd64"
+	//   - OS/Arch pair: "darwin/arm64", "linux/amd64"
+	// More specific keys take precedence over less specific ones.
 	Platform map[string]map[string]string
 }
 
+// BinaryRelease downloads a binary archive from the URL defined in spec, extracts
+// the file matching toolPath's basename, and writes it to toolPath with executable
+// permissions (0500). Supports .zip and .tar.gz archives.
 func BinaryRelease(toolPath string, spec ReleaseSpec) error {
 	url := spec.render(runtime.GOOS, runtime.GOARCH)
 

@@ -11,6 +11,15 @@ import (
 	"github.com/anchore/go-make/log"
 )
 
+// FixtureTasks creates tasks for building and managing test fixtures.
+// It looks for Makefiles in test-fixtures and testdata directories and runs them.
+// Hooks into "unit" to build fixtures before tests run.
+//
+// Created tasks:
+//   - fixtures: builds all test fixtures (runs on "unit")
+//   - fixtures:clean: cleans all fixture caches (runs on "clean")
+//   - fixtures:directories: lists all fixture directories
+//   - fixtures:fingerprint: outputs a hash of all fixture files for caching
 func FixtureTasks() Task {
 	return Task{
 		Name:        "fixtures",

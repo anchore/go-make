@@ -10,8 +10,11 @@ import (
 	"github.com/anchore/go-make/log"
 )
 
+// Option is a functional option for customizing HTTP fetch behavior.
 type Option func(*fetchOptions) error
 
+// Headers adds custom HTTP headers to the request. Can be called multiple times
+// to accumulate headers.
 func Headers(headers map[string]string) Option {
 	return func(opts *fetchOptions) error {
 		if opts.req.Header == nil {
@@ -24,6 +27,8 @@ func Headers(headers map[string]string) Option {
 	}
 }
 
+// Writer redirects the response body to the provided writer instead of returning
+// it as a string. Useful for downloading large files directly to disk.
 func Writer(writer io.Writer) Option {
 	return func(opts *fetchOptions) error {
 		opts.writer = writer
@@ -31,6 +36,8 @@ func Writer(writer io.Writer) Option {
 	}
 }
 
+// Delete performs an HTTP DELETE request to the specified URL.
+// Returns an error if the response status code is >= 300.
 func Delete(urlString string, options ...Option) (err error) {
 	_, err = Fetch(urlString, append(options,
 		func(opts *fetchOptions) error {
@@ -41,6 +48,9 @@ func Delete(urlString string, options ...Option) (err error) {
 	return err
 }
 
+// Fetch performs an HTTP GET request to the specified URL and returns the response
+// body as a string. Use the Writer() option to redirect output to a writer instead.
+// Returns an error if the response status code is >= 300.
 func Fetch(urlString string, options ...Option) (contents string, err error) {
 	u := lang.Return(url.Parse(urlString))
 

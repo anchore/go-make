@@ -26,10 +26,20 @@ import (
 const CMD = "binny"
 
 var (
-	binnyManaged    = readRootBinnyYaml()
+	// binnyManaged holds tool versions from the project's local .binny.yaml.
+	// Takes precedence over defaultVersions when both define the same tool.
+	binnyManaged = readRootBinnyYaml()
+
+	// defaultVersions holds tool versions from go-make's embedded .binny.yaml.
+	// Populated by DefaultConfig() during go-make's init(). Used as fallback
+	// when a tool isn't defined in the local .binny.yaml.
 	defaultVersions = map[string]string{}
+
+	// defaultContents stores the raw embedded .binny.yaml bytes. Needed because
+	// binny requires a config file on disk to read tool installation details.
 	defaultContents []byte
-	installed       = map[string]string{}
+
+	installed = map[string]string{}
 )
 
 func DefaultConfig(binnyConfig io.Reader) {
@@ -88,8 +98,12 @@ func Install(cmd string) string {
 		installed[CMD] = binnyPath
 	}
 
-	// to support default versions inherited from the go-make repo itself, these need
-	// to have a config file on disk for binny to read to get versions, etc.
+	// tool version inheritance: when a tool is in go-make's embedded defaults but
+	// not in the project's local .binny.yaml, we need to give binny a config file
+	// to read (it can't read from embedded bytes). We write the embedded config
+	// to a temp file and pass it via -c flag.
+	//
+	// Priority: local .binny.yaml > embedded defaults
 	var cfg []run.Option
 	if binnyManaged[cmd] == "" && defaultVersions[cmd] != "" {
 		tmpDir, err := os.MkdirTemp(template.Render(config.TmpDir), "binny-config")
@@ -201,6 +215,8 @@ func readBinnyYamlVersions(binnyConfig io.Reader) map[string]string {
 	return out
 }
 
+// findVersion returns the version for a tool. Local .binny.yaml takes precedence
+// over embedded defaults (lang.Default returns first non-empty value).
 func findVersion(name string) string {
 	return lang.Default(binnyManaged[name], defaultVersions[name])
 }
