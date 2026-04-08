@@ -12,6 +12,8 @@ import (
 	"github.com/anchore/go-make/log"
 )
 
+// Ls returns a formatted directory listing similar to "ls -l", showing file
+// permissions, human-readable size, and filename for each entry in the directory.
 func Ls(dir string) string {
 	dir = lang.Return(filepath.Abs(dir))
 	entries := lang.Return(os.ReadDir(dir))
@@ -36,6 +38,8 @@ func LogWorkdir() {
 	}
 }
 
+// HumanizeBytes converts a byte count to a human-readable string with appropriate
+// units (KB, MB, GB, TB). Returns just the number for sizes less than 1KB.
 func HumanizeBytes[T int | int64](size T) any {
 	units := ""
 	value := size

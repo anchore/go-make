@@ -10,6 +10,9 @@ import (
 	"github.com/anchore/go-make/run"
 )
 
+// RunTaskfile delegates execution to the "task" runner if a Taskfile.yaml exists
+// in the project. This allows gradual migration from Task to go-make by forwarding
+// unknown commands to the existing Taskfile. Does nothing if no Taskfile is found.
 func RunTaskfile() {
 	defer lang.AppendStackTraceToPanics()
 	if file.FindParent(git.Root(), "Taskfile.yaml") == "" {

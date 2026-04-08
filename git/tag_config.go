@@ -8,16 +8,25 @@ import (
 
 // CreateTagConfig contains configuration for creating a local git tag.
 type CreateTagConfig struct {
-	Tag          string
-	TagMessage   string
-	GitUserName  string
+	// Tag is the tag name (e.g., "v1.2.3"). Must start with alphanumeric,
+	// cannot contain ".." or end with ".lock".
+	Tag string
+	// TagMessage is the annotation message for the tag.
+	TagMessage string
+	// GitUserName is the name to use for git user.name during tag creation.
+	GitUserName string
+	// GitUserEmail is the email to use for git user.email during tag creation.
 	GitUserEmail string
 }
 
 // PushTagConfig contains configuration for pushing a tag to a remote.
 type PushTagConfig struct {
-	Tag        string
-	DeployKey  string
+	// Tag is the tag name to push (must already exist locally).
+	Tag string
+	// DeployKey is the PEM-formatted SSH private key for authentication.
+	// Must include "-----BEGIN" and "-----END" markers.
+	DeployKey string
+	// Repository is the GitHub repository in "owner/repo" format.
 	Repository string
 }
 

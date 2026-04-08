@@ -19,6 +19,16 @@ import (
 	"github.com/anchore/go-make/run"
 )
 
+// Tasks creates a test task that runs Go tests with coverage reporting.
+// The task hooks into the "test" label, so it runs whenever "make test" is called.
+// By default, it runs tests for all packages with coverage enabled and race detection
+// in CI environments.
+//
+// Example:
+//
+//	gotest.Tasks()                           // default: run all tests
+//	gotest.Tasks(gotest.Name("integration")) // named test suite
+//	gotest.Tasks(gotest.ExcludeGlob("**/test/**")) // exclude paths
 func Tasks(options ...Option) Task {
 	cfg := defaultConfig()
 	for _, opt := range options {
@@ -105,16 +115,26 @@ func Tasks(options ...Option) Task {
 	}
 }
 
+// Config holds configuration for the test task.
 type Config struct {
-	Name         string
-	IncludeGlob  string
-	ExcludeGlob  string
-	Verbose      bool
-	Coverage     bool
+	// Name identifies this test suite (e.g., "unit", "integration"). Used in logs.
+	Name string
+	// IncludeGlob specifies which packages to test (default: "./...").
+	IncludeGlob string
+	// ExcludeGlob filters out packages matching this pattern.
+	ExcludeGlob string
+	// Verbose enables verbose test output (-v flag).
+	Verbose bool
+	// Coverage enables coverage reporting (default: true).
+	Coverage bool
+	// CoverageFile specifies where to write coverage data. If empty, uses temp file.
 	CoverageFile string
-	Race         bool
-	Tags         []string
-	RunFilter    string
+	// Race enables race detector (-race flag). Defaults to true in CI on non-Windows.
+	Race bool
+	// Tags specifies build tags to use during testing.
+	Tags []string
+	// RunFilter limits which tests run (-run flag pattern).
+	RunFilter string
 }
 
 func defaultConfig() Config {
@@ -126,44 +146,52 @@ func defaultConfig() Config {
 	}
 }
 
+// Option is a functional option for configuring test tasks.
 type Option func(*Config)
 
+// Name sets the test suite name (used in log output and task naming).
 func Name(name string) Option {
 	return func(c *Config) {
 		c.Name = name
 	}
 }
 
+// IncludeGlob sets which packages to include in testing (default: "./...").
 func IncludeGlob(packages string) Option {
 	return func(c *Config) {
 		c.IncludeGlob = packages
 	}
 }
 
+// ExcludeGlob sets a pattern to exclude packages from testing.
 func ExcludeGlob(packages string) Option {
 	return func(c *Config) {
 		c.ExcludeGlob = packages
 	}
 }
 
+// Verbose enables verbose test output.
 func Verbose() Option {
 	return func(c *Config) {
 		c.Verbose = true
 	}
 }
 
+// NoCoverage disables coverage reporting.
 func NoCoverage() Option {
 	return func(c *Config) {
 		c.Coverage = false
 	}
 }
 
+// Tags adds build tags to use during testing.
 func Tags(tags ...string) Option {
 	return func(c *Config) {
 		c.Tags = append(c.Tags, tags...)
 	}
 }
 
+// RunFilter sets a -run pattern to limit which tests execute.
 func RunFilter(filter string) Option {
 	return func(c *Config) {
 		c.RunFilter = filter

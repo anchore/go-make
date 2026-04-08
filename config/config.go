@@ -8,28 +8,43 @@ import (
 )
 
 var (
-	// ToolDir is the template to find the root tool directory
+	// ToolDir is a template string for the directory where managed tools are installed.
+	// Defaults to "{{RootDir}}/.tool". Can be overridden before Makefile() is called.
 	ToolDir = "{{RootDir}}/.tool"
-	// RootDir is the template to find the root directory when executing
+
+	// RootDir is a template string for the project root directory.
+	// Defaults to "{{GitRoot}}" which resolves to the directory containing .git.
 	RootDir = "{{GitRoot}}"
-	// TmpDir is the template to find the an alternate TempDir, if empty defaults to system temp dir
+
+	// TmpDir specifies an alternate temporary directory. If empty, uses the system
+	// default temp directory. Useful for CI environments with specific temp paths.
 	TmpDir = ""
 
-	// OS is the OS name to request for commands that require OS name
+	// OS is the target operating system (runtime.GOOS). Used in template rendering
+	// and tool downloads.
 	OS = runtime.GOOS
-	// Arch is the architecture to request for commands that require architecture
+
+	// Arch is the target architecture (runtime.GOARCH). Used in template rendering
+	// and tool downloads.
 	Arch = runtime.GOARCH
 
-	// Debug whether to output debug logging and perform additional diagnostic work
+	// Debug enables debug logging and additional diagnostics like periodic stack traces.
+	// Set via DEBUG=true or RUNNER_DEBUG=1 environment variables.
 	Debug = false
-	// Trace enables Debug and enables even more verbose logging
+
+	// Trace enables even more verbose logging than Debug. Implies Debug=true.
+	// Set via TRACE=true environment variable.
 	Trace = false
 
-	// CI indicates running in a CI environment
+	// CI indicates running in a continuous integration environment.
+	// Set via CI=true environment variable (automatically set by most CI systems).
 	CI = false
-	// Windows indicates running on Windows
+
+	// Windows is true when running on Windows (runtime.GOOS == "windows").
 	Windows = runtime.GOOS == "windows"
-	// Cleanup whether to remove temporary files and downloads
+
+	// Cleanup controls whether temporary files are deleted. Automatically disabled
+	// when Debug or CI is true to aid in debugging.
 	Cleanup = true
 )
 

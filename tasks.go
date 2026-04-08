@@ -17,42 +17,88 @@ import (
 	"github.com/anchore/go-make/template"
 )
 
+// Task defines a unit of work in the build system. Tasks can have dependencies,
+// respond to labels, contain subtasks, and execute arbitrary Go code.
 type Task struct {
-	// Name the name of the tasks, which is used to refer to it everywhere: running, specifying dependencies, etc.
+	// Name is the unique identifier for this task. Used for:
+	//   - Running directly: `make taskname`
+	//   - Specifying in Dependencies: Deps("taskname")
+	//   - Referencing in RunsOn labels
 	Name string
 
-	// Description provides a brief summary or purpose of the task
+	// Description is shown in help output. Keep it brief and action-oriented.
 	Description string
 
-	// Dependencies is a list of tasks that will be executed and must complete successfully before this task executes
+	// Dependencies lists tasks that must complete successfully before this task runs.
+	// These tasks are "pulled in" as prerequisites. Use Deps() helper for cleaner syntax.
+	//
+	// Example: Dependencies: Deps("build", "lint")
 	Dependencies []string
 
-	// RunsOn when a task in RunsOn is executed, it will cause this task to be executed as a dependency
+	// RunsOn lists label names that will trigger this task. When any task in this list runs,
+	// this task will also run. This is the inverse of Dependencies - it "hooks" this task
+	// to run as part of another task.
+	//
+	// Common labels include "test", "clean", "default", and "dependencies:update".
+	//
+	// Example: RunsOn: List("test") causes this task to run whenever "make test" is called.
 	RunsOn []string
 
-	// Tasks allows a hierarchy of tasks to be registered together; subtasks will be prefixed with the "<parent name>:",
-	// but their name will be added to the phase matching the name itself, so `binny` -> `clean` results in
-	// `binny:clean` and `clean` execution for the subtask.
+	// Tasks defines nested subtasks. Subtask names are automatically prefixed with the parent
+	// name using ":" as separator. For example, a subtask named "snapshot" under a parent
+	// named "release" becomes "release:snapshot".
+	//
+	// Subtasks can still hook into other tasks via RunsOn without the prefix.
 	Tasks []Task
 
-	// Run is the function to execute this task's functionality
+	// Run is the function that implements this task's behavior. If nil, the task acts as
+	// a label/phase that other tasks can depend on or hook into.
 	Run func()
 }
 
-// DependsOn adds the provided task names as dependencies to the current task
+// DependsOn adds task names as dependencies, returning a new Task for method chaining.
+// The specified tasks will run before this task executes.
+//
+// Example:
+//
+//	myTask.DependsOn("build", "lint")
 func (t Task) DependsOn(tasks ...string) Task {
 	t.Dependencies = append(t.Dependencies, tasks...)
 	return t
 }
 
-// RunOn adds the provided tasks to the RunsOn list
+// RunOn adds labels that will trigger this task, returning a new Task for method chaining.
+// When any of the specified tasks run, this task will also run.
+//
+// Example:
+//
+//	myTask.RunOn("test", "default")
 func (t Task) RunOn(tasks ...string) Task {
 	t.RunsOn = append(t.RunsOn, tasks...)
 	return t
 }
 
-// Makefile will execute the provided tasks much like make with dependencies,
-// as per the Task behavior declared above
+// Makefile is the main entry point for go-make. It registers all provided tasks,
+// adds built-in tasks (help, clean, binny:*, etc.), sets up signal handling,
+// and executes the requested task(s) from command-line arguments.
+//
+// Makefile handles:
+//   - Signal handling for graceful shutdown (SIGINT, SIGTERM)
+//   - Periodic stack traces in debug mode for diagnosing hangs
+//   - Automatic cleanup via config.DoExit() on completion
+//   - Panic recovery with formatted error output
+//
+// If no task is specified on the command line, "help" is run by default.
+//
+// Example:
+//
+//	func main() {
+//	    Makefile(
+//	        golint.Tasks(),
+//	        gotest.Tasks(),
+//	        Task{Name: "build", Run: func() { Run(`go build ./...`) }},
+//	    )
+//	}
 func Makefile(tasks ...Task) {
 	defer config.DoExit()
 	run.HandleSignals()

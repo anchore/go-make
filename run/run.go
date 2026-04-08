@@ -18,7 +18,9 @@ import (
 	"github.com/anchore/go-make/stream"
 )
 
-// Option is used to alter the command used in Exec calls
+// Option is a functional option that modifies command execution behavior.
+// Options are applied in order before the command runs, allowing customization
+// of arguments, environment, I/O streams, and error handling.
 type Option func(context.Context, *exec.Cmd) error
 
 // Command runs a command, waits until completion, and returns stdout.
@@ -130,6 +132,9 @@ func Args(args ...string) Option {
 	}
 }
 
+// InDir executes the command in the specified directory. This is equivalent to
+// running "cd dir && cmd" but without spawning a shell. The directory change
+// only affects this command execution.
 func InDir(dir string) Option {
 	return func(_ context.Context, cmd *exec.Cmd) error {
 		cmd.Dir = dir
@@ -137,7 +142,13 @@ func InDir(dir string) Option {
 	}
 }
 
-// Options allows multiple options to be passed as one Option
+// Options combines multiple Options into a single Option. This is useful for
+// creating reusable option sets or conditionally including groups of options.
+//
+// Example:
+//
+//	buildOpts := run.Options(run.Env("CGO_ENABLED", "0"), run.Quiet())
+//	Run(`go build ./...`, buildOpts)
 func Options(options ...Option) Option {
 	return func(ctx context.Context, cmd *exec.Cmd) error {
 		for _, opt := range options {
@@ -150,7 +161,9 @@ func Options(options ...Option) Option {
 	}
 }
 
-// Write outputs stdout to a file
+// Write redirects stdout to a file, creating the file if it doesn't exist and truncating
+// it if it does. The file is opened before returning the Option, so errors during file
+// creation will panic immediately.
 func Write(path string) Option {
 	fh, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	defer lang.Close(fh, path)
@@ -161,7 +174,9 @@ func Write(path string) Option {
 	}
 }
 
-// Quiet logs at Debug level instead of Info level
+// Quiet suppresses command output at Info level. The command line is logged at Debug
+// level instead, and stderr is discarded unless config.Debug is enabled. Useful for
+// commands whose output is only needed programmatically.
 func Quiet() Option {
 	return func(ctx context.Context, cmd *exec.Cmd) error {
 		if !config.Debug {
@@ -177,7 +192,16 @@ func Quiet() Option {
 	}
 }
 
-// NoFail logs at Debug level instead of panicking
+// NoFail prevents the command from panicking on failure. Instead of panicking,
+// the error is logged at Debug level and an empty string is returned. Use this
+// when command failure is expected or acceptable.
+//
+// Example:
+//
+//	version := Run(`git describe --tags`, run.NoFail())
+//	if version == "" {
+//	    version = "dev"
+//	}
 func NoFail() Option {
 	return func(ctx context.Context, cmd *exec.Cmd) error {
 		cfg, _ := ctx.Value(runConfig{}).(*runConfig)
@@ -188,7 +212,9 @@ func NoFail() Option {
 	}
 }
 
-// Stdout executes with stdout output mapped to the current process' stdout and optionally stderr
+// Stdout redirects the command's stdout to the provided writer. By default, stdout
+// is captured and returned as the result string. Use this to stream output to a file,
+// buffer, or os.Stdout for real-time display.
 func Stdout(w io.Writer) Option {
 	return func(_ context.Context, cmd *exec.Cmd) error {
 		cmd.Stdout = w
@@ -196,7 +222,8 @@ func Stdout(w io.Writer) Option {
 	}
 }
 
-// Stderr executes with stdout output mapped to the current process' stdout and optionally stderr
+// Stderr redirects the command's stderr to the provided writer. By default, stderr
+// is sent to os.Stderr. Use io.Discard to suppress error output.
 func Stderr(w io.Writer) Option {
 	return func(_ context.Context, cmd *exec.Cmd) error {
 		cmd.Stderr = w
@@ -204,7 +231,8 @@ func Stderr(w io.Writer) Option {
 	}
 }
 
-// Stdin executes with stdout output mapped to the current process' stdout and optionally stderr
+// Stdin provides input to the command from the given reader. By default, stdin is
+// not connected (nil). Use this for commands that read from standard input.
 func Stdin(in io.Reader) Option {
 	return func(_ context.Context, cmd *exec.Cmd) error {
 		cmd.Stdin = in
@@ -212,7 +240,9 @@ func Stdin(in io.Reader) Option {
 	}
 }
 
-// Env adds an environment variable to the command
+// Env adds an environment variable to the command's environment. Note that the command
+// inherits the current process environment by default (minus GO* and CGO_* variables
+// which are filtered to avoid conflicts).
 func Env(key, val string) Option {
 	return func(_ context.Context, cmd *exec.Cmd) error {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, val))
@@ -220,7 +250,16 @@ func Env(key, val string) Option {
 	}
 }
 
-// LDFlags adds an `-ldflags` argument, appending to other existing LDFlags
+// LDFlags adds Go linker flags via the -ldflags argument. If -ldflags is already present
+// in the command arguments, the new flags are appended to the existing value rather than
+// replacing it. This allows multiple LDFlags() calls to accumulate.
+//
+// Example:
+//
+//	Run(`go build ./cmd/app`,
+//	    run.LDFlags("-s", "-w"),
+//	    run.LDFlags("-X main.version=1.0.0"),
+//	)
 func LDFlags(flags ...string) Option {
 	return func(_ context.Context, cmd *exec.Cmd) error {
 		for i, arg := range cmd.Args {

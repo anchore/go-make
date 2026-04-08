@@ -17,6 +17,8 @@ const (
 	versionFile   = "VERSION"
 )
 
+// ChangelogTask creates a task that generates a changelog using chronicle.
+// Requires GitHub authentication via `gh auth login`.
 func ChangelogTask() Task {
 	return Task{
 		Name:        "changelog",
@@ -33,6 +35,9 @@ func ChangelogTask() Task {
 	}
 }
 
+// GenerateAndShowChangelog generates a changelog using chronicle, writes it to
+// CHANGELOG.md, and displays it (using glow if available for better formatting).
+// Returns paths to the generated changelog and version files.
 func GenerateAndShowChangelog() (changelogFilePath, versionFilePath string) {
 	// gh auth status will fail the user is not authenticated
 	log.Debug(Run("gh auth status"))

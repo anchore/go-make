@@ -22,6 +22,9 @@ const (
 	workflowsPath       = ".github/workflows"
 )
 
+// WorkflowReleaseTask creates a task that triggers a GitHub Actions release workflow.
+// It generates a changelog, prompts for confirmation, then triggers the release.yaml
+// workflow with the version from the VERSION file.
 func WorkflowReleaseTask() Task {
 	return Task{
 		Name:        "release",

@@ -7,7 +7,12 @@ import (
 	"github.com/anchore/go-make/log"
 )
 
-// Default returns the first value that is set (the first value does not equal the type's zero value)
+// Default returns the first non-zero value from the provided values. Useful for
+// providing fallback values in a chain.
+//
+// Example:
+//
+//	name := Default(os.Getenv("NAME"), config.DefaultName, "anonymous")
 func Default[T comparable](values ...T) T {
 	var def T
 	for _, v := range values {
@@ -18,19 +23,32 @@ func Default[T comparable](values ...T) T {
 	return def
 }
 
-// Continue returns the return value regardless of any error, logging any error instead of panicking
+// Continue returns the value regardless of any error. If there's an error, it's
+// logged but execution continues. Use when errors are acceptable and shouldn't
+// halt the build.
 func Continue[T any](t T, e error) T {
 	log.Error(e)
 	return t
 }
 
-// Return returns the provided value, panicking if a non-nil error is provided
+// Return returns the value if error is nil, otherwise panics with the error.
+// This is the standard pattern for error handling in go-make tasks.
+//
+// Example:
+//
+//	contents := lang.Return(os.ReadFile("config.yaml"))
 func Return[T any](t T, e error) T {
 	Throw(e)
 	return t
 }
 
-// List returns a slice containing all the provided values, removing any nil or "empty" values
+// List returns a slice containing all non-empty values. Values that are nil,
+// zero-length strings, empty slices/maps, or other "empty" values are filtered out.
+// Useful for building lists where some values may be conditionally present.
+//
+// Example:
+//
+//	args := List("build", verbose && "-v", "-o", output)  // filters out false
 func List[T any](values ...T) []T {
 	for i := 0; i < len(values); i++ {
 		if isEmpty(reflect.ValueOf(values[i])) {
@@ -90,6 +108,14 @@ func isEmpty(v reflect.Value) bool {
 //	}
 //}
 
+// Close safely closes an io.Closer and logs any error. Unlike a bare defer close(),
+// this doesn't lose the error and provides context for debugging. Use in place of
+// defer file.Close() patterns.
+//
+// Example:
+//
+//	f := lang.Return(os.Open(path))
+//	defer lang.Close(f, path)
 func Close(closeable io.Closer, context ...any) {
 	if closeable != nil {
 		log.Error(closeable.Close(), context...)
