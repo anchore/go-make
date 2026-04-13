@@ -53,9 +53,9 @@ func CIReleaseTask() Task {
 }
 
 func ensureHeadHasTag() {
-	tags := strings.Split(Run("git tag --points-at HEAD"), "\n")
+	tags := strings.SplitSeq(Run("git tag --points-at HEAD"), "\n")
 
-	for _, tag := range tags {
+	for tag := range tags {
 		if strings.HasPrefix(tag, "v") {
 			log.Info("HEAD has a version tag: %s", tag)
 			return

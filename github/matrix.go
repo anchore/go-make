@@ -25,12 +25,12 @@ func matrixSuffix() string {
 	if err != nil {
 		return "-unknown"
 	}
-	out := ""
+	var out strings.Builder
 	// skip top-level keys
 	for _, k := range slices.Sorted(maps.Keys(values)) {
-		out += stringify(values[k])
+		out.WriteString(stringify(values[k]))
 	}
-	return out
+	return out.String()
 }
 
 func stringify(value any) string {

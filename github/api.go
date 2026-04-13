@@ -252,14 +252,14 @@ func get[T any](a Api, url string, args ...any) (T, error) {
 }
 
 func join(params []Param, joiner string) string {
-	out := ""
+	var out strings.Builder
 	for i, param := range params {
 		if i > 0 {
-			out += joiner
+			out.WriteString(joiner)
 		}
-		out += param.name + "=" + param.value
+		out.WriteString(param.name + "=" + param.value)
 	}
-	return out
+	return out.String()
 }
 
 // nameMatches returns true if the name matches the expression, lowercase matching, supports globbing

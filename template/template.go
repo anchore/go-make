@@ -2,6 +2,7 @@ package template
 
 import (
 	"bytes"
+	"maps"
 	"reflect"
 	"text/template"
 
@@ -41,9 +42,7 @@ func Render(template string, args ...map[string]any) string {
 		}
 	}
 	for _, arg := range args {
-		for k, v := range arg {
-			context[k] = v
-		}
+		maps.Copy(context, arg)
 	}
 	return render(template, context)
 }

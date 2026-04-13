@@ -3,6 +3,7 @@ package log
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/anchore/go-make/color"
 	"github.com/anchore/go-make/config"
@@ -30,11 +31,11 @@ var Warn = func(format string, args ...any) {
 // Error logs any non-nil error passed
 var Error = func(err error, args ...any) {
 	if err != nil {
-		argString := ""
+		var argString strings.Builder
 		for _, arg := range args {
-			argString += fmt.Sprintf(" %v", arg)
+			argString.WriteString(fmt.Sprintf(" %v", arg))
 		}
-		Info("%v%s", err, argString)
+		Info("%v%s", err, argString.String())
 	}
 }
 

@@ -56,7 +56,7 @@ func Flatten(commaSeparatedStrings ...string) []string {
 func DelimiterFlatten(delimiter string, delimiterSeparatedStrings ...string) []string {
 	var out []string
 	for _, delimiterSeparatedString := range delimiterSeparatedStrings {
-		for _, s := range strings.Split(delimiterSeparatedString, delimiter) {
+		for s := range strings.SplitSeq(delimiterSeparatedString, delimiter) {
 			out = append(out, strings.TrimSpace(s))
 		}
 	}

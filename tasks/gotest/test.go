@@ -209,7 +209,7 @@ func selectPackages(include, exclude string) []string {
 	// split by newline, and use relpath with cwd to get the non-absolute path
 	var dirs []string
 	cwd := file.Cwd()
-	for _, dir := range strings.Split(absDirs, "\n") {
+	for dir := range strings.SplitSeq(absDirs, "\n") {
 		p, err := filepath.Rel(cwd, dir)
 		if err != nil {
 			dirs = append(dirs, dir)

@@ -112,16 +112,16 @@ func validateDeployKey(key string) error {
 	}
 
 	// extract the key type from BEGIN marker and verify END marker matches
-	beginIdx := strings.Index(key, "-----BEGIN ")
-	if beginIdx == -1 {
+	_, after, ok := strings.Cut(key, "-----BEGIN ")
+	if !ok {
 		return fmt.Errorf("deploy key must be a PEM-formatted private key")
 	}
-	afterBegin := key[beginIdx+len("-----BEGIN "):]
-	endOfType := strings.Index(afterBegin, "-----")
-	if endOfType == -1 {
+	afterBegin := after
+	before, _, ok := strings.Cut(afterBegin, "-----")
+	if !ok {
 		return fmt.Errorf("deploy key has malformed BEGIN marker")
 	}
-	keyType := afterBegin[:endOfType]
+	keyType := before
 
 	// verify the END marker has the same key type
 	expectedEnd := "-----END " + keyType + "-----"
