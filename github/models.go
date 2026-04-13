@@ -21,11 +21,11 @@ type Artifact struct {
 	URL                string              `json:"url,omitempty"`
 	ArchiveDownloadURL string              `json:"archive_download_url,omitempty"`
 	Expired            bool                `json:"expired,omitempty"`
-	CreatedAt          Timestamp           `json:"created_at,omitempty"`
-	UpdatedAt          Timestamp           `json:"updated_at,omitempty"`
-	ExpiresAt          Timestamp           `json:"expires_at,omitempty"`
+	CreatedAt          Timestamp           `json:"created_at"`
+	UpdatedAt          Timestamp           `json:"updated_at"`
+	ExpiresAt          Timestamp           `json:"expires_at"`
 	Digest             string              `json:"digest,omitempty"`
-	WorkflowRun        ArtifactWorkflowRun `json:"workflow_run,omitempty"`
+	WorkflowRun        ArtifactWorkflowRun `json:"workflow_run"`
 }
 
 type ArtifactList struct {
@@ -52,21 +52,21 @@ type WorkflowRun struct {
 	URL                string        `json:"url,omitempty"`
 	HTMLURL            string        `json:"html_url,omitempty"`
 	PullRequests       []PullRequest `json:"pull_requests,omitempty"`
-	CreatedAt          Timestamp     `json:"created_at,omitempty"`
-	UpdatedAt          Timestamp     `json:"updated_at,omitempty"`
-	RunStartedAt       Timestamp     `json:"run_started_at,omitempty"`
+	CreatedAt          Timestamp     `json:"created_at"`
+	UpdatedAt          Timestamp     `json:"updated_at"`
+	RunStartedAt       Timestamp     `json:"run_started_at"`
 	PreviousAttemptURL string        `json:"previous_attempt_url,omitempty"`
-	HeadCommit         HeadCommit    `json:"head_commit,omitempty"`
-	Repository         Repository    `json:"repository,omitempty"`
-	HeadRepository     Repository    `json:"head_repository,omitempty"`
-	Actor              User          `json:"actor,omitempty"`
-	TriggeringActor    User          `json:"triggering_actor,omitempty"`
+	HeadCommit         HeadCommit    `json:"head_commit"`
+	Repository         Repository    `json:"repository"`
+	HeadRepository     Repository    `json:"head_repository"`
+	Actor              User          `json:"actor"`
+	TriggeringActor    User          `json:"triggering_actor"`
 }
 
 type PullRequest struct {
 	URL    string `json:"url,omitempty"`
 	Number int    `json:"number,omitempty"`
-	Head   Ref    `json:"head,omitempty"`
+	Head   Ref    `json:"head"`
 }
 
 type Ref struct {

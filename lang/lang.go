@@ -62,7 +62,7 @@ func List[T any](values ...T) []T {
 // Remove returns a new slice with values removed based on true returns from shouldRemove
 func Remove[T comparable](values []T, shouldRemove func(T) bool) []T {
 	var out []T
-	for i := 0; i < len(values); i++ {
+	for i := range values {
 		if shouldRemove(values[i]) {
 			continue
 		}
@@ -74,7 +74,7 @@ func Remove[T comparable](values []T, shouldRemove func(T) bool) []T {
 // Map returns a new slice with values mapped from incoming to outgoing in mapFunc
 func Map[From, To any](values []From, mapFunc func(From) To) []To {
 	out := make([]To, len(values))
-	for i := 0; i < len(values); i++ {
+	for i := range values {
 		out[i] = mapFunc(values[i])
 	}
 	return out
@@ -85,7 +85,7 @@ func isEmpty(v reflect.Value) bool {
 	switch v.Kind() {
 	case reflect.String, reflect.Slice, reflect.Array, reflect.Map:
 		return v.Len() == 0
-	case reflect.Ptr, reflect.Interface, reflect.Func:
+	case reflect.Pointer, reflect.Interface, reflect.Func:
 		return v.IsNil()
 	default:
 		return !v.IsValid() || v.IsZero()

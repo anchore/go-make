@@ -63,7 +63,7 @@ func Payload() Event {
 func envLoad(objects ...any) {
 	for _, o := range objects {
 		val := reflect.ValueOf(o)
-		if val.Kind() != reflect.Ptr {
+		if val.Kind() != reflect.Pointer {
 			panic(fmt.Errorf("expected pointer, got: %#v", o))
 		} else {
 			val = val.Elem()

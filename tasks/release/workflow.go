@@ -36,8 +36,8 @@ func WorkflowReleaseTask() Task {
 
 			m := gomod.Read()
 			if m != nil {
-				if strings.HasPrefix(m.Module.Mod.Path, "github.com/") {
-					ghRepo := strings.TrimPrefix(m.Module.Mod.Path, "github.com/")
+				if after, ok := strings.CutPrefix(m.Module.Mod.Path, "github.com/"); ok {
+					ghRepo := after
 					ghRepo = regexp.MustCompile(`([^/]+/[^/]+)/.*`).ReplaceAllString(ghRepo, "$1")
 					if strings.Count(ghRepo, "/") == 1 {
 						Run("gh repo set default", run.Args(ghRepo))

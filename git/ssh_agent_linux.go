@@ -74,12 +74,12 @@ func setupSSHAgent(deployKey string) (sshAgentInfo, func()) {
 func parseSSHAgentOutput(output string) (authSock string, agentPID int, err error) {
 	// output format: SSH_AUTH_SOCK=/tmp/ssh-XXX/agent.PID; export SSH_AUTH_SOCK;
 	//                SSH_AGENT_PID=PID; export SSH_AGENT_PID;
-	for _, line := range strings.Split(output, ";") {
+	for line := range strings.SplitSeq(output, ";") {
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "SSH_AUTH_SOCK=") {
-			authSock = strings.TrimPrefix(line, "SSH_AUTH_SOCK=")
-		} else if strings.HasPrefix(line, "SSH_AGENT_PID=") {
-			pidStr := strings.TrimPrefix(line, "SSH_AGENT_PID=")
+		if after, ok := strings.CutPrefix(line, "SSH_AUTH_SOCK="); ok {
+			authSock = after
+		} else if after, ok := strings.CutPrefix(line, "SSH_AGENT_PID="); ok {
+			pidStr := after
 			var parseErr error
 			agentPID, parseErr = strconv.Atoi(pidStr)
 			if parseErr != nil {
@@ -114,7 +114,7 @@ func killSSHAgent(pid int) {
 	}
 
 	// wait briefly for graceful termination, then SIGKILL if still running
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		time.Sleep(10 * time.Millisecond)
 		if err := syscall.Kill(pid, 0); err == syscall.ESRCH {
 			return // process exited

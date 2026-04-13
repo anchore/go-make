@@ -33,7 +33,7 @@ func LogWorkdir() {
 	}
 	cwd := Cwd()
 	log.Info("CWD: %s", cwd)
-	for _, line := range strings.Split(Ls(cwd), "\n") {
+	for line := range strings.SplitSeq(Ls(cwd), "\n") {
 		log.Info(line)
 	}
 }
