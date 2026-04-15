@@ -4,7 +4,6 @@
 #
 # Consuming repos can override any tool by defining it in their local .binny.yaml.
 # See README.md "How Tool Versions Work" for details.
-
 # only pull in version updates that were released more than a week ago (low-pass filter for quickly-retracted releases)
 cooldown: 7d
 tools:
