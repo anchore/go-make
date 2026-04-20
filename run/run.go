@@ -54,7 +54,7 @@ func Command(cmd string, opts ...Option) (string, error) {
 
 	env := os.Environ()
 	var dropped []string
-	for i := 0; i < len(env); i++ {
+	for i := range env {
 		nameValue := strings.SplitN(env[i], "=", 2)
 		if skipEnvVar(nameValue[0]) {
 			dropped = append(dropped, nameValue[0])

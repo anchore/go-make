@@ -168,7 +168,7 @@ func removeCommonQueryParams(s string) string {
 }
 
 func multiMap(values ...map[string]any) map[string]any {
-	for i := 0; i < len(values); i++ {
+	for i := range values {
 		maps.Copy(values[0], values[i])
 	}
 	return values[0]
