@@ -10,13 +10,14 @@ on:
     # run once per week so we always have an artifact for testing and get notified of new versions causing issues
     - cron: 0 0 * * 0
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   Static-Analysis:
     name: "Static analysis"
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
@@ -36,6 +37,8 @@ jobs:
   Integration-Tests:
     name: "Integration tests"
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
@@ -47,6 +50,8 @@ jobs:
 
   Tests:
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       matrix:
         os:
