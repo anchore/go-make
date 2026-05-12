@@ -1,6 +1,6 @@
-# Restore-only caching pattern: PRs read existing caches but never write back; only the
-# repo's default branch (`github.event.repository.default_branch`) refreshes them. This
-# keeps untrusted PR runs from polluting or evicting trusted cache entries.
+# Restore-only caching pattern: PRs (and pushes to fork default branches) read existing
+# caches but never write back. Only pushes to the upstream repo's default branch refresh
+# them. This keeps untrusted runs from polluting or evicting trusted cache entries.
 #
 # See: https://github.com/actions/setup-go/blob/main/docs/advanced-usage.md#restore-only-caches
 # and: https://github.com/actions/cache/tree/main/restore#only-restore-cache
@@ -50,7 +50,7 @@ runs:
 
     # go build/mod cache: restore-only on non-default branches
     - name: Restore go build/mod cache
-      if: ${{ inputs.cache-enabled == 'true' && github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
+      if: ${{ inputs.cache-enabled == 'true' && (github.ref != format('refs/heads/{0}', github.event.repository.default_branch) || github.event.repository.fork == true) }}
       uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: |
@@ -62,7 +62,7 @@ runs:
 
     # go build/mod cache: restore + save on the cache-update branch
     - name: Restore and save go build/mod cache
-      if: ${{ inputs.cache-enabled == 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+      if: ${{ inputs.cache-enabled == 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.event.repository.fork == false }}
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: |
@@ -75,7 +75,7 @@ runs:
     # tool cache: restore-only on non-default branches
     - name: Restore tool cache
       id: tool-cache
-      if: ${{ inputs.cache-enabled == 'true' && github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
+      if: ${{ inputs.cache-enabled == 'true' && (github.ref != format('refs/heads/{0}', github.event.repository.default_branch) || github.event.repository.fork == true) }}
       uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: ${{ github.workspace }}/.tool
@@ -86,7 +86,7 @@ runs:
     # tool cache: restore + save on the cache-update branch
     - name: Restore and save tool cache
       id: tool-cache-rw
-      if: ${{ inputs.cache-enabled == 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+      if: ${{ inputs.cache-enabled == 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.event.repository.fork == false }}
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: ${{ github.workspace }}/.tool
