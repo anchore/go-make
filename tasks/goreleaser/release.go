@@ -16,10 +16,10 @@ const configName = ".goreleaser.yaml"
 func Tasks() Task {
 	return Task{
 		Tasks: []Task{
-			SnapshotTasks(),
-			ReleaseTask(),
-			release.WorkflowReleaseTask(),
-			release.ChangelogTask(),
+			SnapshotTasks(),               // `make snapshot` to build a local snapshot to ./snapshot
+			ReleaseTask(),                 // `make ci-release` for building and publishing a release with goreleaser
+			release.WorkflowReleaseTask(), // `make release` to trigger the release.yaml workflow
+			release.ChangelogTask(),       // `make changelog` to generate and show changes since the last release
 		},
 	}
 }
