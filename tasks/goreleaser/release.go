@@ -1,14 +1,10 @@
 package goreleaser
 
 import (
-	"errors"
-	"os"
-	"strings"
-
 	. "github.com/anchore/go-make"
 	"github.com/anchore/go-make/binny"
 	"github.com/anchore/go-make/file"
-	"github.com/anchore/go-make/log"
+	"github.com/anchore/go-make/internal/ci"
 	"github.com/anchore/go-make/run"
 	"github.com/anchore/go-make/tasks/release"
 )
@@ -21,16 +17,17 @@ func Tasks() Task {
 	return Task{
 		Tasks: []Task{
 			SnapshotTasks(),
-			CIReleaseTask(),
+			ReleaseTask(),
 			release.WorkflowReleaseTask(),
+			release.ChangelogTask(),
 		},
 	}
 }
 
-// CIReleaseTask creates a task for running goreleaser in CI environments.
+// ReleaseTask creates a task for running goreleaser in CI environments.
 // Requires CI=true, a version tag on HEAD, and optional quill/syft tools
 // for signing and SBOM generation.
-func CIReleaseTask() Task {
+func ReleaseTask() Task {
 	return Task{
 		Name:         "ci-release",
 		Description:  "build and publish a release with goreleaser",
@@ -38,8 +35,9 @@ func CIReleaseTask() Task {
 		Run: func() {
 			file.Require(configName)
 
-			failIfNotInCI()
-			ensureHeadHasTag()
+			tagName, deployKey := ci.ReleaseInputs()
+
+			ci.PublishTag(tagName, deployKey)
 			changelogFile, _ := release.GenerateAndShowChangelog()
 
 			Run(`goreleaser release --clean --release-notes`, run.Args(changelogFile))
@@ -49,25 +47,6 @@ func CIReleaseTask() Task {
 			Description:  "ensure all release dependencies are installed",
 			Dependencies: Deps("dependencies:quill", "dependencies:syft"),
 		}},
-	}
-}
-
-func ensureHeadHasTag() {
-	tags := strings.Split(Run("git tag --points-at HEAD"), "\n")
-
-	for _, tag := range tags {
-		if strings.HasPrefix(tag, "v") {
-			log.Info("HEAD has a version tag: %s", tag)
-			return
-		}
-	}
-
-	panic(errors.New("HEAD does not have a tag that starts with 'v'"))
-}
-
-func failIfNotInCI() {
-	if os.Getenv("CI") == "" {
-		panic(errors.New("this task can only be run in CI"))
 	}
 }
 
