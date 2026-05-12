@@ -28,6 +28,8 @@ func main() {
 				value += string(buf[0])
 			}
 			g(os.Stderr.WriteString(value))
+		case "env":
+			g(os.Stdout.WriteString(os.Getenv(os.Args[i+1])))
 		case "exit-code":
 			exit = g(strconv.Atoi(os.Args[i+1]))
 		}
