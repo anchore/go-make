@@ -14,6 +14,7 @@ import (
 	"github.com/anchore/go-make/config"
 	"github.com/anchore/go-make/file"
 	"github.com/anchore/go-make/github"
+	"github.com/anchore/go-make/gomod"
 	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
 	"github.com/anchore/go-make/run"
@@ -82,6 +83,9 @@ func Tasks(options ...Option) Task {
 			Log("Done running %s tests in %v", cfg.Name, time.Since(start))
 
 			if coverageFile != "" && cfg.CoverageFile == "" {
+				// drop entries for files that no longer exist (e.g. renamed/deleted between cached
+				// test runs and now) so `go tool cover -func` doesn't fail trying to open them.
+				scrubMissingFilesFromCoverProfile(coverageFile)
 				report := Run("go tool cover", run.Args("-func", coverageFile), run.Quiet())
 				if cfg.Verbose {
 					Log(" -------------- Coverage Report -------------- ")
@@ -196,6 +200,84 @@ func RunFilter(filter string) Option {
 	return func(c *Config) {
 		c.RunFilter = filter
 	}
+}
+
+// scrubMissingFilesFromCoverProfile rewrites the given cover profile to remove rows that point
+// at source files which no longer exist on disk. This happens with `-coverpkg=./...` plus the
+// Go test cache: cached test results from packages that didn't change still replay coverage
+// data for files (in other packages) that have since been renamed or deleted. `go tool cover
+// -func` would otherwise fail with "open ...: no such file or directory" on those entries.
+func scrubMissingFilesFromCoverProfile(coverageFile string) {
+	mod := gomod.Read()
+	if mod == nil || mod.Module == nil {
+		return
+	}
+	modPath := mod.Module.Mod.Path
+	modFile := file.FindParent(file.Cwd(), "go.mod")
+	if modFile == "" {
+		return
+	}
+	modRoot := filepath.Dir(modFile)
+
+	contents, err := os.ReadFile(coverageFile)
+	if err != nil {
+		log.Debug("unable to read cover profile for scrubbing: %v", err)
+		return
+	}
+
+	fileExists := func(rel string) bool {
+		_, statErr := os.Stat(filepath.Join(modRoot, rel)) //nolint:gosec // G703: path derived from in-module cover profile rows
+		return statErr == nil
+	}
+
+	kept, dropped := scrubCoverLines(strings.Split(string(contents), "\n"), modPath, fileExists)
+	if len(dropped) == 0 {
+		return
+	}
+
+	for _, p := range dropped {
+		log.Debug("dropping stale cover profile entries for missing file: %s", p)
+	}
+
+	if err := os.WriteFile(coverageFile, []byte(strings.Join(kept, "\n")), 0o600); err != nil {
+		log.Debug("unable to rewrite scrubbed cover profile: %v", err)
+	}
+}
+
+// scrubCoverLines filters cover profile lines, dropping any in-module rows whose source file
+// is reported missing by fileExists. Non-module rows, the mode header, blanks, and anything
+// unparseable are kept as-is. Existence checks are memoized per source path.
+func scrubCoverLines(lines []string, modPath string, fileExists func(rel string) bool) (kept, dropped []string) {
+	exists := map[string]bool{}
+	kept = make([]string, 0, len(lines))
+	for _, line := range lines {
+		if line == "" || strings.HasPrefix(line, "mode:") {
+			kept = append(kept, line)
+			continue
+		}
+		colon := strings.Index(line, ":")
+		if colon < 0 {
+			kept = append(kept, line)
+			continue
+		}
+		srcPath := line[:colon]
+		if !strings.HasPrefix(srcPath, modPath+"/") {
+			kept = append(kept, line)
+			continue
+		}
+		ok, seen := exists[srcPath]
+		if !seen {
+			ok = fileExists(strings.TrimPrefix(srcPath, modPath+"/"))
+			exists[srcPath] = ok
+			if !ok {
+				dropped = append(dropped, srcPath)
+			}
+		}
+		if ok {
+			kept = append(kept, line)
+		}
+	}
+	return kept, dropped
 }
 
 func selectPackages(include, exclude string) []string {
