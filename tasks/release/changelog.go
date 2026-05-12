@@ -5,9 +5,7 @@ import (
 	"os"
 
 	. "github.com/anchore/go-make"
-	"github.com/anchore/go-make/binny"
 	"github.com/anchore/go-make/file"
-	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
 	"github.com/anchore/go-make/run"
 )
@@ -45,16 +43,11 @@ func GenerateAndShowChangelog() (changelogFilePath, versionFilePath string) {
 	ghAuthToken := Run("gh auth token")
 	log.Debug("Auth token: %.10s...", ghAuthToken)
 
-	changelog := Run("chronicle -n --version-file", run.Args(versionFile), run.Env("GITHUB_TOKEN", ghAuthToken))
-
-	file.Write(changelogFile, changelog)
-
-	// render the changelog with glow if available
-	if binny.IsManagedTool("glow") {
-		// without -s dark, it will defailt to no style since it cannot detect a tty with this approach
-		changelog = Run(fmt.Sprintf(`glow -s dark -w 0 %s`, changelogFile))
-	}
-	lang.Return(os.Stderr.WriteString(changelog))
+	Run(
+		fmt.Sprintf(`chronicle -n -o version=%s -o md=%s -o md-pretty`, versionFile, changelogFile),
+		run.Stdout(os.Stderr),
+		run.Env("GITHUB_TOKEN", ghAuthToken),
+	)
 
 	return changelogFile, versionFile
 }
@@ -69,16 +62,11 @@ func GenerateAndShowFromVersion(version string) string {
 	ghAuthToken := Run("gh auth token")
 	log.Debug("Auth token: %.10s...", ghAuthToken)
 
-	changelog := Run("chronicle --until-tag", run.Args(version), run.Env("GITHUB_TOKEN", ghAuthToken))
-
-	file.Write(changelogFile, changelog)
-
-	// render the changelog with glow if available
-	if binny.IsManagedTool("glow") {
-		// without -s dark, it will default to no style since it cannot detect a tty with this approach
-		changelog = Run(fmt.Sprintf(`glow -s dark -w 0 %s`, changelogFile))
-	}
-	lang.Return(os.Stderr.WriteString(changelog))
+	Run(
+		fmt.Sprintf(`chronicle -n --until-tag %s -o md=%s -o md-pretty`, version, changelogFile),
+		run.Stdout(os.Stderr),
+		run.Env("GITHUB_TOKEN", ghAuthToken),
+	)
 
 	return changelogFile
 }
