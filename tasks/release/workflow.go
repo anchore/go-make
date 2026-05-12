@@ -40,7 +40,7 @@ func WorkflowReleaseTask() Task {
 					ghRepo := after
 					ghRepo = regexp.MustCompile(`([^/]+/[^/]+)/.*`).ReplaceAllString(ghRepo, "$1")
 					if strings.Count(ghRepo, "/") == 1 {
-						Run("gh repo set default", run.Args(ghRepo))
+						Run("gh repo set-default", run.Args(ghRepo))
 					}
 				}
 			}
