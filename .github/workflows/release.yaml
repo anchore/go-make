@@ -16,6 +16,8 @@ on:
 jobs:
 
   version-available:
+    permissions:
+      contents: read  # need to read tags to check if the version already exists
     uses: anchore/workflows/.github/workflows/check-version-available.yaml@4f25313f96311410cad4173f74617654a3e46d48 # v0.3.0
     with:
       version: ${{ github.event.inputs.version }}
