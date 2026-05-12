@@ -17,8 +17,7 @@ func main() {
 	Makefile(
 		golint.Tasks(),
 		gotest.Tasks(),
-		release.ChangelogTask(),
-		release.TagAndCreateGHRelease(),
+		release.Tasks(),
 		Task{
 			Name:        "generate:github-ssh-keys",
 			Description: "refresh GitHub SSH known_hosts from the GitHub meta API",
