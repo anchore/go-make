@@ -62,21 +62,21 @@ func ManagedToolPath(cmd string) string {
 		return out
 	}
 
-	// first, check if we have the tool in the path already, such as `gh` on a GitHub Actions runner;
-	// we may need to find a way to force use of the managed version
+	// always prefer binny managed tools first
+	if IsManagedTool(cmd) {
+		fullPath := Install(cmd)
+		installed[cmd] = fullPath
+		return fullPath
+	}
+
+	// second, see if the user already has this tool on path
 	fullPath, err := exec.LookPath(cmd)
 	if fullPath != "" && err == nil {
 		installed[cmd] = fullPath
 		return fullPath
 	}
 
-	if !IsManagedTool(cmd) {
-		return ""
-	}
-
-	fullPath = Install(cmd)
-	installed[cmd] = fullPath
-	return fullPath
+	return ""
 }
 
 // Install installs the named executable and returns an absolute path to it
