@@ -68,6 +68,16 @@ func Command(cmd string, opts ...Option) (string, error) {
 		log.Trace(color.Grey("dropped environment entry: %v", e))
 	}
 
+	// layer in <RootDir>/.env values (process env wins on conflict). intentionally
+	// NOT filtered by skipEnvVar — entries in .env are explicit user intent.
+	if dotEnv := loadDotEnv(); len(dotEnv) > 0 {
+		var skipped []string
+		c.Env, skipped = mergeDotEnv(c.Env, dotEnv)
+		for _, k := range skipped {
+			log.Trace(color.Grey("dotenv: %v already set in process env; skipping", k))
+		}
+	}
+
 	cfg := runConfig{}
 	ctx := context.WithValue(Context(), runConfig{}, &cfg)
 
