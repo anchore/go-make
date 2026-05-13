@@ -32,6 +32,7 @@ bin/
 .idea/
 .server/
 .history/
+.zed/
 
 # test related
 *.fingerprint

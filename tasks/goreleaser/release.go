@@ -1,6 +1,8 @@
 package goreleaser
 
 import (
+	"fmt"
+
 	. "github.com/anchore/go-make"
 	"github.com/anchore/go-make/binny"
 	"github.com/anchore/go-make/file"
@@ -42,43 +44,30 @@ func ReleaseTask() Task {
 
 			Run(`goreleaser release --clean --release-notes`, run.Args(changelogFile))
 		},
-		Tasks: []Task{quillInstallTask(), syftInstallTask(), cosignInstallTask(), {
-			Name:         "release:dependencies",
-			Description:  "ensure all release dependencies are installed",
-			Dependencies: Deps("dependencies:quill", "dependencies:syft", "dependencies:cosign"),
-		}},
+		Tasks: releaseDependencyTasks("quill", "syft", "cosign"),
 	}
 }
 
-func quillInstallTask() Task {
-	return Task{
-		Name: "dependencies:quill",
-		Run: func() {
-			if binny.IsManagedTool("quill") {
-				binny.Install("quill")
-			}
-		},
+func releaseDependencyTasks(names ...string) []Task {
+	tasks := make([]Task, len(names))
+	taskNames := make([]string, len(names))
+	for i, name := range names {
+		taskNames[i] = fmt.Sprintf("dependencies:%s", name)
+		tasks[i] = Task{
+			Name: taskNames[i],
+			Run: func() {
+				if binny.IsManagedTool(name) {
+					binny.Install(name)
+				}
+			},
+		}
 	}
-}
 
-func syftInstallTask() Task {
-	return Task{
-		Name: "dependencies:syft",
-		Run: func() {
-			if binny.IsManagedTool("syft") {
-				binny.Install("syft")
-			}
-		},
-	}
-}
+	tasks = append(tasks, Task{
+		Name:         "release:dependencies",
+		Description:  "ensure all release dependencies are installed",
+		Dependencies: Deps(taskNames...),
+	})
 
-func cosignInstallTask() Task {
-	return Task{
-		Name: "dependencies:cosign",
-		Run: func() {
-			if binny.IsManagedTool("cosign") {
-				binny.Install("syft")
-			}
-		},
-	}
+	return tasks
 }
