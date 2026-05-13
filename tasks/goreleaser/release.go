@@ -42,10 +42,10 @@ func ReleaseTask() Task {
 
 			Run(`goreleaser release --clean --release-notes`, run.Args(changelogFile))
 		},
-		Tasks: []Task{quillInstallTask(), syftInstallTask(), {
+		Tasks: []Task{quillInstallTask(), syftInstallTask(), cosignInstallTask(), {
 			Name:         "release:dependencies",
 			Description:  "ensure all release dependencies are installed",
-			Dependencies: Deps("dependencies:quill", "dependencies:syft"),
+			Dependencies: Deps("dependencies:quill", "dependencies:syft", "dependencies:cosign"),
 		}},
 	}
 }
@@ -66,6 +66,17 @@ func syftInstallTask() Task {
 		Name: "dependencies:syft",
 		Run: func() {
 			if binny.IsManagedTool("syft") {
+				binny.Install("syft")
+			}
+		},
+	}
+}
+
+func cosignInstallTask() Task {
+	return Task{
+		Name: "dependencies:cosign",
+		Run: func() {
+			if binny.IsManagedTool("cosign") {
 				binny.Install("syft")
 			}
 		},
