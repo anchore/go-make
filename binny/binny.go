@@ -240,9 +240,15 @@ func matchesVersion(versionRequest, versionToCheck string) bool {
 	splitter := regexp.MustCompile(`((^|[-._+~a-zA-Z])[a-zA-Z]*\d+)`)
 	parts1 := splitter.FindAllString(versionRequest, -1)
 	parts2 := splitter.FindAllString(versionToCheck, -1)
+	// when either side has no digit-bearing tokens (e.g. "main", "feature-x"), the
+	// component-wise comparison below has nothing to align against; fall back to a
+	// direct string comparison so non-numeric refs still produce sensible results.
+	if len(parts1) == 0 || len(parts2) == 0 {
+		return versionRequest == versionToCheck
+	}
 	for i, part := range parts1 {
 		part = remover.ReplaceAllString(part, "")
-		if i <= len(parts2) {
+		if i < len(parts2) {
 			part2 := remover.ReplaceAllString(parts2[i], "")
 			int1, err := strconv.Atoi(part)
 			if err == nil {

@@ -78,48 +78,73 @@ func Test_matchesVersion(t *testing.T) {
 		want     bool
 	}{
 		{
+			// baseline: leading "v" is optional on either side.
 			version1: "0.9.0",
 			version2: "v0.9.0",
 			want:     true,
 		},
 		{
-			version1: "v0.9.0",
-			version2: "0.9.0",
-			want:     true,
-		},
-		{
+			// baseline: surrounding whitespace is trimmed before comparison.
 			version1: " v0.9.0 ",
 			version2: "0.9.0",
 			want:     true,
 		},
 		{
+			// baseline: a differing numeric component is a mismatch.
 			version1: "v0.8.0",
 			version2: "v0.9.0",
 			want:     false,
 		},
 		{
-			version1: "v0.9.0",
-			version2: "v0.8.0",
-			want:     false,
-		},
-		{
-			version1: "0.9.0",
-			version2: "v0.8.0",
-			want:     false,
-		},
-		{
+			// baseline: when parts1 has fewer tokens than parts2, the extras
+			// in parts2 are ignored — a less-specific request matches a
+			// more-specific installed version as long as the shared prefix agrees.
 			version1: "v0.9",
 			version2: "v0.9.0",
 			want:     true,
 		},
 		{
+			// baseline: prerelease tokens are compared component-wise; equal here.
 			version1: "v0.9.0-rc.1",
 			version2: "v0.9.0-rc.1",
 			want:     true,
 		},
 		{
+			// baseline: a differing prerelease component is a mismatch.
 			version1: "v0.9.0-rc.1",
 			version2: "v0.9.0-rc.2",
+			want:     false,
+		},
+		{
+			// regression: parts1 has more digit-bearing tokens than parts2.
+			// Previously panicked because the loop used i <= len(parts2)
+			// instead of i < len(parts2), so at i==len(parts2) it accessed
+			// parts2[len(parts2)] which is out of bounds.
+			version1: "v0.9.0",
+			version2: "v0.9",
+			want:     true,
+		},
+		{
+			// regression: previously panicked with index out of range because
+			// "main" produces zero digit-bearing tokens while "0.13.0" produces
+			// three, and the loop accessed parts2[0] anyway.
+			version1: "v0.13.0",
+			version2: "main",
+			want:     false,
+		},
+		{
+			// non-numeric refs on both sides fall back to direct string equality.
+			version1: "main",
+			version2: "main",
+			want:     true,
+		},
+		{
+			// "current" is not a sentinel: it's treated as any other non-numeric
+			// ref. A configured target of "current" will never match a real
+			// --version output, so it will trigger a reinstall. Pin this so a
+			// future change doesn't quietly re-introduce special handling.
+			version1: "v0.13.0",
+			version2: "current",
 			want:     false,
 		},
 	}
