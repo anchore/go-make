@@ -25,4 +25,7 @@ func Test_Task(t *testing.T) {
 
 	gotest.ExcludeGlob("**/*skip*")(&cfg)
 	require.Equal(t, "**/*skip*", cfg.ExcludeGlob)
+
+	gotest.CoverageThreshold(75.5)(&cfg)
+	require.Equal(t, 75.5, cfg.CoverageThreshold)
 }
