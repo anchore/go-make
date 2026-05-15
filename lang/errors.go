@@ -172,12 +172,11 @@ func skipTraceLine(line string) bool {
 		return false
 	}
 	line = strings.TrimSpace(line)
-	// keep go-make internal frames (binny, run, template, etc.) so that runtime
-	// panics inside go-make show their actual origin instead of just the user-task
-	// call site. only filter pure noise: the runtime panic machinery, the test
-	// harness, and the main entry.
 	return strings.HasPrefix(line, "panic(") ||
 		strings.HasPrefix(line, "runtime/") ||
 		strings.Contains(line, "testing.") ||
-		strings.HasPrefix(line, "main.main()")
+		strings.HasPrefix(line, "main.main()") ||
+		strings.HasPrefix(line, "github.com/anchore/go-make.") ||
+		(strings.HasPrefix(line, "github.com/anchore/go-make/") &&
+			!strings.HasPrefix(line, "github.com/anchore/go-make/tasks/"))
 }

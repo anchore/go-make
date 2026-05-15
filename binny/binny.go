@@ -236,13 +236,6 @@ func matchesVersion(versionRequest, versionToCheck string) bool {
 		*ptr = strings.TrimSpace(*ptr)
 		*ptr = strings.TrimPrefix(*ptr, "v")
 	}
-	// "current" is a sentinel meaning "whatever is locally checked out / installed".
-	// There's no version string we could parse from a binary that would meaningfully
-	// match it, so trust the installed binary rather than triggering a reinstall (the
-	// download path can't fetch a "current" release anyway).
-	if versionToCheck == "current" {
-		return true
-	}
 	remover := regexp.MustCompile(`^[-._]`)
 	splitter := regexp.MustCompile(`((^|[-._+~a-zA-Z])[a-zA-Z]*\d+)`)
 	parts1 := splitter.FindAllString(versionRequest, -1)
