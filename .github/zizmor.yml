@@ -4,3 +4,9 @@ rules:
       policies:
         # anchore actions are internal; using @main is acceptable
         anchore/*: any
+  github-env:
+    # writing GO_MOD_CACHE/GO_BUILD_CACHE to $GITHUB_ENV is safe here: the values come
+    # from `go env` (trusted toolchain output), not from user-controlled input
+    ignore:
+      - action.yaml:47
+      - action.yaml:48
