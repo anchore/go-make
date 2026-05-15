@@ -122,6 +122,33 @@ func Test_matchesVersion(t *testing.T) {
 			version2: "v0.9.0-rc.2",
 			want:     false,
 		},
+		{
+			// "current" is a sentinel meaning the locally-checked-out source; it
+			// can't be compared against a numeric --version, so treat as matching
+			// to avoid clobbering the local binary with a downloaded release.
+			version1: "v0.13.0",
+			version2: "current",
+			want:     true,
+		},
+		{
+			// regression: previously panicked with index out of range because
+			// "main" produces zero digit-bearing tokens while "0.13.0" produces
+			// three, and the loop accessed parts2[0] anyway.
+			version1: "v0.13.0",
+			version2: "main",
+			want:     false,
+		},
+		{
+			// non-numeric refs on both sides fall back to direct string equality.
+			version1: "main",
+			version2: "main",
+			want:     true,
+		},
+		{
+			version1: "feature-x",
+			version2: "feature-y",
+			want:     false,
+		},
 	}
 
 	for _, tt := range tests {
