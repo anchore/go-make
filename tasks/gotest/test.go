@@ -157,7 +157,7 @@ func logCoverageReport(report, rawPct string, found, verbose bool) {
 // uploadCoverage best-effort uploads the cover profile as a GitHub Actions artifact on linux.
 // Errors are intentionally swallowed (logged at debug) so they don't fail the task.
 func uploadCoverage(coverageFile string) {
-	if config.OS != "linux" {
+	if !config.CI || config.OS != "linux" {
 		return
 	}
 	err := lang.Catch(func() {
