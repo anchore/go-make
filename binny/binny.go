@@ -25,15 +25,27 @@ import (
 
 const CMD = "binny"
 
+// toolSpec captures the fields go-make needs from a single tool entry in a
+// .binny.yaml. Version is the requested version string (e.g. "v0.13.0"). When
+// LocalModule is non-empty, this entry refers to a checked-out source tree on
+// disk (method: go-install + with.module: <relative path>) — go-make will shim
+// it to `go run` instead of fetching or building a release binary. LocalModule
+// is an absolute path; Entrypoint mirrors binny's with.entrypoint.
+type toolSpec struct {
+	Version     string
+	LocalModule string
+	Entrypoint  string
+}
+
 var (
-	// binnyManaged holds tool versions from the project's local .binny.yaml.
-	// Takes precedence over defaultVersions when both define the same tool.
+	// binnyManaged holds tool specs from the project's local .binny.yaml.
+	// Takes precedence over defaultSpecs when both define the same tool.
 	binnyManaged = readRootBinnyYaml()
 
-	// defaultVersions holds tool versions from go-make's embedded .binny.yaml.
+	// defaultSpecs holds tool specs from go-make's embedded .binny.yaml.
 	// Populated by DefaultConfig() during go-make's init(). Used as fallback
 	// when a tool isn't defined in the local .binny.yaml.
-	defaultVersions = map[string]string{}
+	defaultSpecs = map[string]toolSpec{}
 
 	// defaultContents stores the raw embedded .binny.yaml bytes. Needed because
 	// binny requires a config file on disk to read tool installation details.
@@ -44,11 +56,20 @@ var (
 
 func DefaultConfig(binnyConfig io.Reader) {
 	defaultContents = lang.Return(io.ReadAll(binnyConfig))
-	defaultVersions = readBinnyYamlVersions(bytes.NewReader(defaultContents))
+	// embedded defaults never reference a local module on disk, so the base dir
+	// passed here is irrelevant — pass "" and any local-module entries (which
+	// shouldn't exist here) will be discarded.
+	defaultSpecs = readBinnyYamlSpecs(bytes.NewReader(defaultContents), "")
 }
 
 func IsManagedTool(cmd string) bool {
-	return binnyManaged[cmd] != "" || defaultVersions[cmd] != ""
+	return isLocalSpec(binnyManaged[cmd]) || binnyManaged[cmd].Version != "" || defaultSpecs[cmd].Version != ""
+}
+
+// isLocalSpec is true when the spec points at a checked-out source tree rather
+// than a released version.
+func isLocalSpec(s toolSpec) bool {
+	return s.LocalModule != ""
 }
 
 // ManagedToolPath returns the full path to a binny managed tool, installing or updating it before returning
@@ -82,10 +103,17 @@ func ManagedToolPath(cmd string) string {
 // Install installs the named executable and returns an absolute path to it
 func Install(cmd string) string {
 	binnyPath := ToolPath(CMD)
+	binnySpec := binnyManaged[CMD]
 	if installed[CMD] != binnyPath {
-		if !file.Exists(binnyPath) {
+		switch {
+		case isLocalSpec(binnySpec):
+			// binny itself is being built from a local checkout; write (or refresh)
+			// a thin shim at binnyPath that defers to `go run`. No version check —
+			// the source is authoritative.
+			installBinnyShim(binnyPath, binnySpec)
+		case !file.Exists(binnyPath):
 			installBinny(binnyPath, findBinnyVersion())
-		} else if cmd != CMD && IsManagedTool(CMD) {
+		case cmd != CMD && IsManagedTool(CMD):
 			// we manage the binny updates here, because binny is not released for all platforms,
 			// and we may have to build from source
 			binnyVersion := lang.Return(run.Command(binnyPath, run.Args("--version"), run.Quiet()))
@@ -105,7 +133,7 @@ func Install(cmd string) string {
 	//
 	// Priority: local .binny.yaml > embedded defaults
 	var cfg []run.Option
-	if binnyManaged[cmd] == "" && defaultVersions[cmd] != "" {
+	if !inLocalConfig(cmd) && defaultSpecs[cmd].Version != "" {
 		tmpDir, err := os.MkdirTemp(template.Render(config.TmpDir), "binny-config")
 		if err == nil {
 			defer func() {
@@ -147,6 +175,66 @@ func Install(cmd string) string {
 	return toolPath
 }
 
+// installBinnyShim ensures binnyPath is a thin wrapper that defers to the local
+// source tree described by spec. On Unix-like systems it's a tiny sh script
+// that execs `go run`; on Windows it's a `go build` artifact (Windows can't
+// exec a shell script via a path ending in .exe, so we accept the per-source-
+// change build cost there).
+//
+// The shim is written idempotently: if the on-disk contents already match
+// what we'd produce, we skip the write so we don't churn mtimes.
+func installBinnyShim(binnyPath string, spec toolSpec) {
+	pkg := spec.LocalModule
+	if spec.Entrypoint != "" {
+		pkg = filepath.Join(spec.LocalModule, spec.Entrypoint)
+	}
+
+	if config.Windows {
+		// no shim — build into binnyPath. `go build` is cheap on a warm cache.
+		// remove first to avoid EACCES if a prior read-only release binary
+		// occupies the path (same scenario the Unix branch guards against).
+		// On Windows, os.Remove fails on read-only files because unlink
+		// requires write access to the file itself (unlike Unix, where parent
+		// dir perms govern); chmod to a writable mode first. Both calls are
+		// best-effort against a possibly-missing file.
+		_ = os.Chmod(binnyPath, 0o600)
+		if err := os.Remove(binnyPath); err != nil && !os.IsNotExist(err) {
+			lang.Throw(err)
+		}
+		log.Info("building local binny from %v", pkg)
+		lang.Return(run.Command("go", run.Args("build", "-o", binnyPath, pkg)))
+		installed[CMD] = binnyPath
+		return
+	}
+
+	content := fmt.Sprintf("#!/bin/sh\nexec go run %s \"$@\"\n", shellQuote(pkg))
+	if existing, err := os.ReadFile(binnyPath); err == nil && string(existing) == content {
+		installed[CMD] = binnyPath
+		return
+	}
+	lang.Throw(os.MkdirAll(filepath.Dir(binnyPath), 0o755))
+	// any pre-existing file at binnyPath may be a previously-downloaded release
+	// binary written read-only (-r-x------), which would cause WriteFile to fail
+	// with EACCES even though we own the parent dir. Remove first so we can
+	// write fresh perms. os.Remove tolerates missing files via the IsNotExist
+	// guard below.
+	if err := os.Remove(binnyPath); err != nil && !os.IsNotExist(err) {
+		lang.Throw(err)
+	}
+	// shim must be executable for the caller to exec it; gosec defaults the
+	// threshold to 0600 which is not viable for an entry-point script.
+	lang.Throw(os.WriteFile(binnyPath, []byte(content), 0o755)) //nolint:gosec
+	log.Info("binny shim installed at %v -> go run %v", binnyPath, pkg)
+	installed[CMD] = binnyPath
+}
+
+// shellQuote wraps a path in single quotes for /bin/sh, escaping any embedded
+// single quotes. The shim is not user-input, but module paths can contain
+// spaces and we want the shim to remain robust.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
 func installBinny(binnyPath, version string) {
 	err := fetch.BinaryRelease(binnyPath, fetch.ReleaseSpec{
 		URL: "https://github.com/anchore/binny/releases/download/v{{.version}}/binny_{{.version}}_{{.os}}_{{.arch}}.{{.ext}}",
@@ -178,47 +266,89 @@ func installBinny(binnyPath, version string) {
 	installed["binny"] = binnyPath
 }
 
-func readRootBinnyYaml() map[string]string {
+func readRootBinnyYaml() map[string]toolSpec {
 	rootDir := template.Render(config.RootDir)
 	binnyYaml := file.FindParent(rootDir, ".binny.yaml")
 	if binnyYaml == "" {
 		log.Debug("no .binny.yaml found in %v or any parent directory", rootDir)
-		return map[string]string{}
+		return map[string]toolSpec{}
 	}
-	return readBinnyYamlVersions(lang.Return(os.Open(binnyYaml)))
+	return readBinnyYamlSpecs(lang.Return(os.Open(binnyYaml)), filepath.Dir(binnyYaml))
 }
 
-func readBinnyYamlVersions(binnyConfig io.Reader) map[string]string {
-	out := map[string]string{}
-	if binnyConfig != nil {
-		if closer, _ := binnyConfig.(io.Closer); closer != nil {
-			defer lang.Close(closer, ".binny.yaml")
+// readBinnyYamlSpecs decodes a binny config and returns the subset go-make
+// cares about per tool. baseDir is the directory containing the .binny.yaml,
+// used to resolve relative `with.module` paths into absolute paths so the
+// shim continues to work when go-make is invoked from a subdirectory.
+func readBinnyYamlSpecs(binnyConfig io.Reader, baseDir string) map[string]toolSpec {
+	out := map[string]toolSpec{}
+	if binnyConfig == nil {
+		return out
+	}
+	if closer, _ := binnyConfig.(io.Closer); closer != nil {
+		defer lang.Close(closer, ".binny.yaml")
+	}
+	cfg := map[string]any{}
+	d := yaml.NewDecoder(binnyConfig)
+	lang.Throw(d.Decode(&cfg))
+	tools, _ := cfg["tools"].([]any)
+	for _, tool := range tools {
+		m, ok := tool.(map[string]any)
+		if !ok {
+			continue
 		}
-		cfg := map[string]any{}
-		d := yaml.NewDecoder(binnyConfig)
-		lang.Throw(d.Decode(&cfg))
-		tools := cfg["tools"]
-		if tools, ok := tools.([]any); ok {
-			for _, tool := range tools {
-				if m, ok := tool.(map[string]any); ok {
-					version := m["version"]
-					if v, ok := version.(map[string]any); ok {
-						if want, ok := v["want"].(string); ok {
-							version = want
-						}
-					}
-					out[toString(m["name"])] = toString(version)
-				}
-			}
+		name := toString(m["name"])
+		if name == "" {
+			continue
 		}
+		out[name] = toSpec(m, baseDir)
 	}
 	return out
+}
+
+// toSpec extracts the version (and, if applicable, a local-module pointer)
+// from a single tool entry. A local module is recognized when method is
+// "go-install" and `with.module` looks like a filesystem path (starts with
+// "." or is absolute) — the same shape used for self-development of binny.
+func toSpec(m map[string]any, baseDir string) toolSpec {
+	spec := toolSpec{Version: extractVersion(m["version"])}
+
+	method := toString(m["method"])
+	with, _ := m["with"].(map[string]any)
+	module := toString(with["module"])
+	if method == "go-install" && isLocalPath(module) && baseDir != "" {
+		spec.LocalModule = lang.Return(filepath.Abs(filepath.Join(baseDir, module)))
+		spec.Entrypoint = toString(with["entrypoint"])
+	}
+	return spec
+}
+
+func extractVersion(v any) string {
+	if m, ok := v.(map[string]any); ok {
+		return toString(m["want"])
+	}
+	return toString(v)
+}
+
+func isLocalPath(p string) bool {
+	// a leading "/" is recognized as local on every OS even though Windows's
+	// filepath.IsAbs requires a drive letter — a portable .binny.yaml uses
+	// forward slashes and rooted paths should still parse as local there.
+	return p == "." || strings.HasPrefix(p, "./") || strings.HasPrefix(p, "../") || strings.HasPrefix(p, "/") || filepath.IsAbs(p)
+}
+
+// inLocalConfig is true when the project's local .binny.yaml mentions cmd.
+// Used to decide whether embedded defaults should be layered in via a temp
+// config file when binny is asked to install cmd.
+func inLocalConfig(cmd string) bool {
+	s := binnyManaged[cmd]
+	return s.Version != "" || isLocalSpec(s)
 }
 
 // findVersion returns the version for a tool. Local .binny.yaml takes precedence
 // over embedded defaults (lang.Default returns first non-empty value).
 func findVersion(name string) string {
-	return lang.Default(binnyManaged[name], defaultVersions[name])
+	return lang.Default(binnyManaged[name].Version, defaultSpecs[name].Version)
 }
 
 func findBinnyVersion() string {

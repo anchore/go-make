@@ -1,9 +1,13 @@
 package binny
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/anchore/go-make/config"
 	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/require"
 	"github.com/anchore/go-make/template"
@@ -61,14 +65,134 @@ func Test_installBinny(t *testing.T) {
 			}
 
 			tt.err(t, lang.Catch(func() {
-				versions := readBinnyYamlVersions(binnyYaml)
-				require.Equal(t, tt.version, versions["binny"])
-				require.Equal(t, "v2.3.1", versions["golangci-lint"])
+				specs := readBinnyYamlSpecs(binnyYaml, "")
+				require.Equal(t, tt.version, specs["binny"].Version)
+				require.Equal(t, "v2.3.1", specs["golangci-lint"].Version)
 
 				installBinny(binnyPath, tt.version)
 			}))
 		})
 	}
+}
+
+func Test_readBinnyYamlSpecs_localModule(t *testing.T) {
+	// pin the contract that a `method: go-install` entry whose `with.module`
+	// looks like a local path is captured as a LocalModule spec, with the
+	// path resolved against the .binny.yaml's directory.
+	baseDir := t.TempDir()
+	yaml := strings.NewReader(`tools:
+  - name: binny
+    version:
+      want: current
+    method: go-install
+    with:
+      module: .
+      entrypoint: cmd/binny
+
+  - name: chronicle
+    version:
+      want: v0.9.0
+    method: github-release
+    with:
+      repo: anchore/chronicle
+`)
+
+	specs := readBinnyYamlSpecs(yaml, baseDir)
+
+	wantAbs := lang.Return(filepath.Abs(baseDir))
+	require.Equal(t, wantAbs, specs["binny"].LocalModule)
+	require.Equal(t, "cmd/binny", specs["binny"].Entrypoint)
+	require.Equal(t, "current", specs["binny"].Version)
+
+	// non-local entries should still parse, but with no LocalModule
+	require.Equal(t, "", specs["chronicle"].LocalModule)
+	require.Equal(t, "v0.9.0", specs["chronicle"].Version)
+}
+
+func Test_isLocalPath(t *testing.T) {
+	tests := []struct {
+		in   string
+		want bool
+	}{
+		{".", true},
+		{"./", true},
+		{"./pkg", true},
+		{"../sibling", true},
+		{"/abs/path", true},
+		{"github.com/anchore/binny", false},
+		{"", false},
+		{"binny", false}, // bare names are go module imports, not local paths
+	}
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			require.Equal(t, tt.want, isLocalPath(tt.in))
+		})
+	}
+}
+
+func Test_installBinnyShim(t *testing.T) {
+	if config.Windows || runtime.GOOS == "windows" {
+		t.Skip("shim is sh-based; Windows takes the go build path which would require a real go module on disk")
+	}
+
+	toolDir := t.TempDir()
+	binnyPath := filepath.Join(toolDir, "binny")
+	moduleDir := t.TempDir()
+
+	// reset the package-level installed cache so a prior test can't shadow us
+	defer func(prev map[string]string) { installed = prev }(installed)
+	installed = map[string]string{}
+
+	installBinnyShim(binnyPath, toolSpec{LocalModule: moduleDir, Entrypoint: "cmd/binny"})
+
+	content, err := os.ReadFile(binnyPath)
+	require.NoError(t, err)
+	body := string(content)
+
+	expectedPkg := filepath.Join(moduleDir, "cmd/binny")
+	require.Contains(t, body, "#!/bin/sh")
+	require.Contains(t, body, "exec go run")
+	require.Contains(t, body, expectedPkg)
+
+	info, err := os.Stat(binnyPath)
+	require.NoError(t, err)
+	require.True(t, info.Mode()&0o111 != 0)
+	require.Equal(t, binnyPath, installed[CMD])
+
+	// idempotency: a second call with identical spec must leave mtime untouched
+	// (matched contents — skip write path).
+	mtimeBefore := info.ModTime()
+	// guarantee any real write would tick the mtime
+	require.NoError(t, os.Chtimes(binnyPath, mtimeBefore, mtimeBefore))
+	installBinnyShim(binnyPath, toolSpec{LocalModule: moduleDir, Entrypoint: "cmd/binny"})
+	info, err = os.Stat(binnyPath)
+	require.NoError(t, err)
+	require.True(t, info.ModTime().Equal(mtimeBefore))
+}
+
+func Test_installBinnyShim_replacesReadOnlyFile(t *testing.T) {
+	// regression: a prior `binny` release binary at .tool/binny is often
+	// installed with -r-x------ (read+exec only). os.WriteFile honors the
+	// existing file's mode, so writing the shim over it must remove first.
+	if config.Windows || runtime.GOOS == "windows" {
+		t.Skip("shim path is sh-only; windows uses go build which is exercised elsewhere")
+	}
+
+	toolDir := t.TempDir()
+	binnyPath := filepath.Join(toolDir, "binny")
+	moduleDir := t.TempDir()
+
+	require.NoError(t, os.WriteFile(binnyPath, []byte("old-binary"), 0o500)) //nolint:gosec
+	require.NoError(t, os.Chmod(binnyPath, 0o500))
+
+	defer func(prev map[string]string) { installed = prev }(installed)
+	installed = map[string]string{}
+
+	installBinnyShim(binnyPath, toolSpec{LocalModule: moduleDir, Entrypoint: "cmd/binny"})
+
+	content, err := os.ReadFile(binnyPath)
+	require.NoError(t, err)
+	require.Contains(t, string(content), "exec go run")
 }
 
 func Test_matchesVersion(t *testing.T) {
