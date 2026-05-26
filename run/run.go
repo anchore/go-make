@@ -289,16 +289,27 @@ func LDFlags(flags ...string) Option {
 	}
 }
 
+// shortenedArgs trims the args portion of the command line for display when it would
+// otherwise exceed maxDisplayLen characters (e.g. `go test pkg1 pkg2 ... pkgN` with
+// hundreds of packages). It keeps as many leading args as fit within the budget and
+// replaces the rest with a single "... (N more, DEBUG=1 to show)" marker. Set DEBUG=1
+// (or any other mechanism that flips config.Debug) to skip shortening entirely.
 func shortenedArgs(args []string) []string {
-	const maxLen = 16
-	var out []string
-	for _, arg := range args {
-		if len(out) > maxLen && len(arg) > maxLen {
-			arg = arg[:maxLen]
-		}
-		out = append(out, arg)
+	if config.Debug {
+		return args
 	}
-	return out
+	const maxDisplayLen = 200
+	total := 0
+	for i, arg := range args {
+		total += len(arg) + 1 // +1 for the joining space
+		if total > maxDisplayLen && i < len(args)-1 {
+			remaining := len(args) - i - 1
+			// three-index slice forces a new backing array so we don't mutate args.
+			// Grey the marker so it's visually distinct from the actual command args.
+			return append(args[:i+1:i+1], color.Grey("... (%d more, DEBUG=1 to show)", remaining))
+		}
+	}
+	return args
 }
 
 func skipEnvVar(s string) bool {

@@ -13,6 +13,61 @@ import (
 	"github.com/anchore/go-make/require"
 )
 
+func Test_shortenedArgs(t *testing.T) {
+	longPkg := "github.com/anchore/syft/cmd/syft/internal/commands"
+	manyPkgs := make([]string, 50)
+	for i := range manyPkgs {
+		manyPkgs[i] = longPkg
+	}
+
+	tests := []struct {
+		name      string
+		debug     bool
+		args      []string
+		want      []string // expected output (nil to skip exact match and use truncated assertion instead)
+		truncated bool     // expect shortening + summary marker
+	}{
+		{
+			name: "short command is unchanged",
+			args: []string{"build", "-o", "out", "./cmd/foo"},
+			want: []string{"build", "-o", "out", "./cmd/foo"},
+		},
+		{
+			name: "empty is unchanged",
+			args: nil,
+			want: nil,
+		},
+		{
+			name:  "debug returns full args verbatim",
+			debug: true,
+			args:  append([]string{"test"}, manyPkgs...),
+			want:  append([]string{"test"}, manyPkgs...),
+		},
+		{
+			name:      "long arg list is replaced with summary marker",
+			args:      append([]string{"test"}, manyPkgs...),
+			truncated: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.debug {
+				require.SetAndRestore(t, &config.Debug, true)
+			}
+
+			got := shortenedArgs(tt.args)
+
+			if tt.truncated {
+				require.True(t, len(got) < len(tt.args))
+				require.Contains(t, got[len(got)-1], "more, DEBUG=1 to show")
+				return
+			}
+			require.EqualElements(t, tt.want, got)
+		})
+	}
+}
+
 func Test_Command(t *testing.T) {
 	buf1 := bytes.Buffer{}
 	buf2 := bytes.Buffer{}
