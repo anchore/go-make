@@ -60,7 +60,7 @@ func Command(cmd string, opts ...Option) (string, error) {
 			dropped = append(dropped, nameValue[0])
 			continue
 		}
-		log.Trace(color.Grey("adding environment entry: %v", env[i]))
+		log.Trace(color.Grey("adding environment entry: %v", redactEnvEntry(env[i])))
 		c.Env = append(c.Env, env[i])
 	}
 
@@ -97,8 +97,11 @@ func Command(cmd string, opts ...Option) (string, error) {
 	}
 	logFunc("$ %v %v", displayPath(cmd), strings.Join(args, " "))
 
-	// print out c.Env -- GOROOT vs GOBIN
-	log.Trace("ENV: %v", c.Env)
+	// print out c.Env -- GOROOT vs GOBIN. Values of credential-looking entries
+	// (TOKEN/SECRET/PASSWORD/KEY/CREDENTIAL/...) are redacted so that turning
+	// on trace logging in CI to diagnose a problem doesn't dump tokens or
+	// deploy keys to stderr.
+	log.Trace("ENV: %v", redactEnvList(c.Env))
 
 	// WaitDelay specifies the time to wait after context cancellation (and the Cancel func
 	// being called) before force-killing the process.
@@ -320,6 +323,57 @@ func skipEnvVar(s string) bool {
 		return true
 	}
 	return false
+}
+
+// sensitiveEnvSubstrings are substrings (uppercased) whose presence in an env
+// var NAME flags the entry as credential-bearing for trace-log redaction. The
+// list is conservative — false positives only cost log readability, while
+// false negatives leak secrets to anyone with trace logging enabled.
+var sensitiveEnvSubstrings = []string{
+	"TOKEN",
+	"SECRET",
+	"PASSWORD",
+	"PASSWD",
+	"PASSPHRASE",
+	"CREDENTIAL",
+	"_KEY", // DEPLOY_KEY, PRIVATE_KEY, API_KEY, AWS_SECRET_ACCESS_KEY, ...
+	"KEY_",
+	"AUTH",
+}
+
+// isSensitiveEnvName reports whether the env var name looks like a credential.
+func isSensitiveEnvName(name string) bool {
+	upper := strings.ToUpper(name)
+	for _, s := range sensitiveEnvSubstrings {
+		if strings.Contains(upper, s) {
+			return true
+		}
+	}
+	return false
+}
+
+// redactEnvEntry returns a "NAME=VALUE" entry with the value replaced by
+// "***" when the name looks like a credential. Non-sensitive entries are
+// returned unchanged. Used so trace logging can show the shape of the
+// environment without ever printing token bodies.
+func redactEnvEntry(entry string) string {
+	name, _, ok := strings.Cut(entry, "=")
+	if !ok {
+		return entry
+	}
+	if isSensitiveEnvName(name) {
+		return name + "=***"
+	}
+	return entry
+}
+
+// redactEnvList applies redactEnvEntry to each entry, returning a new slice.
+func redactEnvList(env []string) []string {
+	out := make([]string, len(env))
+	for i, e := range env {
+		out[i] = redactEnvEntry(e)
+	}
+	return out
 }
 
 func displayPath(cmd string) string {

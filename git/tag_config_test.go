@@ -286,6 +286,98 @@ AAAAB3NzaC1yc2EAAA...
 	}
 }
 
+func TestValidateTagToken(t *testing.T) {
+	tests := []struct {
+		name    string
+		token   string
+		wantErr require.ValidationError
+	}{
+		// valid cases
+		{
+			name:  "classic PAT format",
+			token: "ghp_" + strings.Repeat("A", 36),
+		},
+		{
+			name:  "fine-grained PAT format",
+			token: "github_pat_" + strings.Repeat("a", 70),
+		},
+		{
+			name:  "installation token format",
+			token: "ghs_" + strings.Repeat("9", 36),
+		},
+		{
+			name:  "minimum sensible token",
+			token: "x",
+		},
+		{
+			name:  "token at max length",
+			token: strings.Repeat("a", 1024),
+		},
+		{
+			name:  "token with mixed printable punctuation",
+			token: "abc_DEF-123.456~_",
+		},
+		// invalid cases
+		{
+			name:    "empty token",
+			token:   "",
+			wantErr: require.Error,
+		},
+		{
+			name:    "token over size limit",
+			token:   strings.Repeat("a", 1025),
+			wantErr: require.Error,
+		},
+		{
+			name:    "token with null byte",
+			token:   "ghp_abc\x00def",
+			wantErr: require.Error,
+		},
+		{
+			name:    "token with newline",
+			token:   "ghp_abc\ndef",
+			wantErr: require.Error,
+		},
+		{
+			name:    "token with carriage return",
+			token:   "ghp_abc\rdef",
+			wantErr: require.Error,
+		},
+		{
+			name:    "token with tab",
+			token:   "ghp_abc\tdef",
+			wantErr: require.Error,
+		},
+		{
+			name:    "token with space",
+			token:   "ghp_abc def",
+			wantErr: require.Error,
+		},
+		{
+			name:    "token with leading whitespace",
+			token:   " ghp_abc",
+			wantErr: require.Error,
+		},
+		{
+			name:    "token with non-ASCII",
+			token:   "ghp_abcdé",
+			wantErr: require.Error,
+		},
+		{
+			name:    "token with DEL char",
+			token:   "ghp_abc\x7f",
+			wantErr: require.Error,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateTagToken(tt.token)
+			tt.wantErr.Validate(t, err)
+		})
+	}
+}
+
 func TestValidateSafeString(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -703,25 +795,49 @@ wAAAECQYJy3qVPVLCJKT6zXRX7E5t1cMX7E5t1cMX7E5t1cMUcrZonhxIHeP7RuF80gkkv
 3IK4YWpSbiMmU7sLxUtNDAAAADnRlc3RAZXhhbXBsZS5jb20BAgMEBQ==
 -----END OPENSSH PRIVATE KEY-----`
 
+	validToken := "ghp_" + strings.Repeat("A", 36)
+
 	tests := []struct {
 		name       string
 		tag        string
 		deployKey  string
+		tagToken   string
 		repository string
 		wantPanic  bool
 	}{
-		// valid config
+		// valid configs (one credential at a time)
 		{
-			name:       "valid complete config",
+			name:       "valid config with deploy key",
 			tag:        "v1.0.0",
 			deployKey:  validPrivateKey,
 			repository: "owner/repo",
 		},
 		{
-			name:       "valid config with minimal values",
+			name:       "valid config with tag token",
+			tag:        "v1.0.0",
+			tagToken:   validToken,
+			repository: "owner/repo",
+		},
+		{
+			name:       "valid config with minimal values (deploy key)",
 			tag:        "v1",
 			deployKey:  validPrivateKey,
 			repository: "a/b",
+		},
+		// credential exclusivity
+		{
+			name:       "fails when both deploy key and tag token are set",
+			tag:        "v1.0.0",
+			deployKey:  validPrivateKey,
+			tagToken:   validToken,
+			repository: "owner/repo",
+			wantPanic:  true,
+		},
+		{
+			name:       "fails when neither deploy key nor tag token is set",
+			tag:        "v1.0.0",
+			repository: "owner/repo",
+			wantPanic:  true,
 		},
 		// invalid tag
 		{
@@ -740,16 +856,17 @@ wAAAECQYJy3qVPVLCJKT6zXRX7E5t1cMX7E5t1cMX7E5t1cMUcrZonhxIHeP7RuF80gkkv
 		},
 		// invalid deploy key
 		{
-			name:       "fails on empty deploy key",
-			tag:        "v1.0.0",
-			deployKey:  "",
-			repository: "owner/repo",
-			wantPanic:  true,
-		},
-		{
 			name:       "fails on invalid deploy key",
 			tag:        "v1.0.0",
 			deployKey:  "not a key",
+			repository: "owner/repo",
+			wantPanic:  true,
+		},
+		// invalid tag token
+		{
+			name:       "fails on tag token with newline",
+			tag:        "v1.0.0",
+			tagToken:   "ghp_abc\nrm -rf",
 			repository: "owner/repo",
 			wantPanic:  true,
 		},
@@ -779,6 +896,10 @@ wAAAECQYJy3qVPVLCJKT6zXRX7E5t1cMX7E5t1cMX7E5t1cMUcrZonhxIHeP7RuF80gkkv
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// the deferred recover is the single source of truth for
+			// panic-vs-no-panic expectations; any code after cfg.validate()
+			// only runs on the no-panic path, so it must not also assert on
+			// tt.wantPanic.
 			defer func() {
 				r := recover()
 				if tt.wantPanic && r == nil {
@@ -792,17 +913,14 @@ wAAAECQYJy3qVPVLCJKT6zXRX7E5t1cMX7E5t1cMX7E5t1cMUcrZonhxIHeP7RuF80gkkv
 			cfg := PushTagConfig{
 				Tag:        tt.tag,
 				DeployKey:  tt.deployKey,
+				TagToken:   tt.tagToken,
 				Repository: tt.repository,
 			}
 			cfg.validate()
 
-			if tt.wantPanic {
-				t.Error("expected panic but got config")
-				return
-			}
-
 			require.Equal(t, tt.tag, cfg.Tag)
 			require.Equal(t, tt.deployKey, cfg.DeployKey)
+			require.Equal(t, tt.tagToken, cfg.TagToken)
 			require.Equal(t, tt.repository, cfg.Repository)
 		})
 	}
@@ -826,10 +944,12 @@ func TestPushTagConfigStruct(t *testing.T) {
 	cfg := PushTagConfig{
 		Tag:        "v1.0.0",
 		DeployKey:  "key",
+		TagToken:   "token",
 		Repository: "owner/repo",
 	}
 
 	require.Equal(t, "v1.0.0", cfg.Tag)
 	require.Equal(t, "key", cfg.DeployKey)
+	require.Equal(t, "token", cfg.TagToken)
 	require.Equal(t, "owner/repo", cfg.Repository)
 }

@@ -20,16 +20,17 @@ func Tasks() Task {
 }
 
 // TagReleaseTask creates a git tag and GitHub release for a specific version.
-// This task is designed to run in CI with GitHub's release environment, which provides
-// deploy key SSH secrets for tag control. This approach is necessary because repository
-// rulesets typically prevent direct tag pushes, so we use a deploy key with write access
-// to push the tag via SSH.
+// This task is designed to run in CI with GitHub's release environment, which
+// provides either a TAG_TOKEN (HTTPS, preferred) or a DEPLOY_KEY (SSH) secret
+// for tag control. This is necessary because repository rulesets typically
+// prevent direct tag pushes from the default GITHUB_TOKEN, so a credential
+// with explicit write access is required.
 //
 // The workflow is:
 //  1. Validate the version format (must be semver like v1.2.3)
 //  2. Create the tag locally (no credentials needed)
 //  3. Generate the changelog using chronicle with --until-tag
-//  4. Push the tag to remote using the deploy key
+//  4. Push the tag to remote using the configured credential
 //  5. Create the GitHub release with the changelog
 func TagReleaseTask() Task {
 	return Task{
@@ -38,10 +39,10 @@ func TagReleaseTask() Task {
 		Run: func() {
 			ensureNoGoreleaserConfig()
 
-			tagName, deployKey := ci.ReleaseInputs()
+			tagName := ci.ReleaseTagInput()
 
-			// this ensures we are in CI and will tag HEAD and push using the deploy key
-			ci.PublishTag(tagName, deployKey)
+			// this ensures we are in CI and will tag HEAD and push using the configured credential
+			ci.PublishTag(tagName)
 
 			// generate changelog for the version (needs the tag to exist locally)
 			changelogFile := GenerateAndShowFromVersion(tagName)

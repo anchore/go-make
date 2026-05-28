@@ -20,12 +20,18 @@ type CreateTagConfig struct {
 }
 
 // PushTagConfig contains configuration for pushing a tag to a remote.
+// Exactly one of DeployKey or TagToken must be set; that choice determines
+// whether the push uses SSH (deploy key) or HTTPS (GitHub token).
 type PushTagConfig struct {
 	// Tag is the tag name to push (must already exist locally).
 	Tag string
 	// DeployKey is the PEM-formatted SSH private key for authentication.
-	// Must include "-----BEGIN" and "-----END" markers.
+	// Must include "-----BEGIN" and "-----END" markers. Mutually exclusive with TagToken.
 	DeployKey string
+	// TagToken is the GitHub token used as the HTTPS password. It is never
+	// included in command-line arguments, git config, or remote URLs.
+	// Mutually exclusive with DeployKey.
+	TagToken string
 	// Repository is the GitHub repository in "owner/repo" format.
 	Repository string
 }
@@ -58,16 +64,29 @@ func (c CreateTagConfig) validate() {
 	}
 }
 
-// validate validates all PushTagConfig fields.
+// validate validates all PushTagConfig fields. Requires exactly one credential
+// (DeployKey or TagToken) to be set, and validates the format of whichever is
+// provided.
 func (c PushTagConfig) validate() {
 	if err := validateTag(c.Tag); err != nil {
 		panic(err)
 	}
-	if err := validateDeployKey(c.DeployKey); err != nil {
-		panic(err)
-	}
 	if err := validateRepository(c.Repository); err != nil {
 		panic(err)
+	}
+	switch {
+	case c.DeployKey != "" && c.TagToken != "":
+		panic("PushTagConfig: only one of DeployKey or TagToken may be set")
+	case c.DeployKey == "" && c.TagToken == "":
+		panic("PushTagConfig: either DeployKey or TagToken must be set")
+	case c.TagToken != "":
+		if err := validateTagToken(c.TagToken); err != nil {
+			panic(err)
+		}
+	default:
+		if err := validateDeployKey(c.DeployKey); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -137,6 +156,27 @@ func validateDeployKey(key string) error {
 		return fmt.Errorf("deploy key appears to be a certificate, not a private key")
 	}
 
+	return nil
+}
+
+// validateTagToken validates a GitHub token used for HTTPS authentication.
+// Tokens must be non-empty single-line printable ASCII (no whitespace, no control
+// characters, no null bytes) and within a reasonable size limit. We deliberately
+// do not enforce specific GitHub token prefixes so new token formats keep working.
+func validateTagToken(token string) error {
+	if token == "" {
+		return fmt.Errorf("tag token cannot be empty")
+	}
+	if len(token) > 1024 {
+		return fmt.Errorf("tag token exceeds maximum size of 1KB")
+	}
+	for _, r := range token {
+		// accept only printable ASCII (0x21..0x7e) to prevent newline injection,
+		// shell metacharacter abuse via the askpass script, and null-byte tricks
+		if r < 0x21 || r > 0x7e {
+			return fmt.Errorf("tag token contains invalid characters")
+		}
+	}
 	return nil
 }
 
