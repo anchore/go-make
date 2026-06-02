@@ -80,6 +80,20 @@ func PushTag(cfg PushTagConfig) {
 	pushTagWithDeployKey(cfg)
 }
 
+// sshRemoteURL and httpsRemoteURL build the GitHub remote URL for a repository
+// in each transport's format. They are package variables (never reassigned by
+// production code) so integration tests can redirect a push at a local bare
+// repo instead of github.com — the remote-tag-existence check otherwise only
+// ever talks to real GitHub and can't be exercised offline.
+var (
+	sshRemoteURL = func(repository string) string {
+		return fmt.Sprintf("git@github.com:%s.git", repository)
+	}
+	httpsRemoteURL = func(repository string) string {
+		return fmt.Sprintf("https://github.com/%s.git", repository)
+	}
+)
+
 // pushTagWithDeployKey pushes the tag via SSH using a temporary ssh-agent
 // loaded with the deploy key. GitHub's known_hosts is pinned to prevent MITM,
 // the remote URL is temporarily switched to SSH, and all git config changes
@@ -117,7 +131,7 @@ func pushTagWithDeployKey(cfg PushTagConfig) {
 		setGitConfig("core.sshCommand", sshCommand)
 
 		// set remote URL to SSH format
-		sshURL := fmt.Sprintf("git@github.com:%s.git", cfg.Repository)
+		sshURL := sshRemoteURL(cfg.Repository)
 		setGitConfig("remote.origin.url", sshURL)
 
 		// every git invocation in this block must carry SSH_AUTH_SOCK so it can
@@ -142,12 +156,34 @@ func pushTagWithDeployKey(cfg PushTagConfig) {
 // line or in git config.
 func pushTagWithToken(cfg PushTagConfig) {
 	origRemoteURL := getGitConfig("remote.origin.url")
+
+	// CI checkout steps (notably actions/checkout) persist the job's default
+	// credentials into the repo's local git config as one or more
+	// http.<server>.extraheader entries, e.g.
+	//
+	//   http.https://github.com/.extraheader = AUTHORIZATION: basic <base64 GITHUB_TOKEN>
+	//
+	// git attaches that Authorization header to EVERY HTTPS request. Because the
+	// request then arrives already authenticated, the server never replies 401,
+	// so git never invokes GIT_ASKPASS and the token we supply below is silently
+	// ignored — the push goes out as the persisted checkout credential (usually
+	// github-actions[bot]) instead of cfg.TagToken.
+	persistedAuthHeaders := getGitConfigRegexp(`^http\..*\.extraheader$`)
+	for _, h := range persistedAuthHeaders {
+		unsetAllGitConfig(h.key)
+	}
+
 	defer func() {
 		log.Debug("restoring original git configuration")
 		if origRemoteURL != "" {
 			setGitConfig("remote.origin.url", origRemoteURL)
 		} else {
 			unsetGitConfig("remote.origin.url")
+		}
+		// re-add the auth headers we stripped above, preserving order so a
+		// multi-valued key is restored exactly as we found it.
+		for _, h := range persistedAuthHeaders {
+			addGitConfig(h.key, h.value)
 		}
 	}()
 
@@ -159,7 +195,7 @@ func pushTagWithToken(cfg PushTagConfig) {
 		lang.Throw(os.Chmod(askpassPath, 0o700))
 
 		// use a plain HTTPS URL so the token never appears in git config or ps output
-		httpsURL := fmt.Sprintf("https://github.com/%s.git", cfg.Repository)
+		httpsURL := httpsRemoteURL(cfg.Repository)
 		setGitConfig("remote.origin.url", httpsURL)
 
 		// env passed to every git child process in this block:
@@ -177,13 +213,22 @@ func pushTagWithToken(cfg PushTagConfig) {
 			run.Env("LC_ALL", "C"),
 		)
 
+		// after a successful HTTPS authentication git runs "credential approve",
+		// which hands the credential to any configured credential.helper (macOS
+		// Keychain, the cache daemon, or a plaintext store file). That would
+		// persist cfg.TagToken beyond this process. An empty helper value resets
+		// the helper chain for these invocations, so nothing stores the token.
+		// This applies to the ls-remote check below as well, which authenticates
+		// over HTTPS just like the push.
+		noCredentialStore := run.Args("-c", "credential.helper=")
+
 		// check remote tag existence against the NEW (HTTPS, authenticated)
 		// remote rather than whatever URL the runner started with.
-		if tagExistsRemotely(cfg.Tag, authEnv) {
+		if tagExistsRemotely(cfg.Tag, noCredentialStore, authEnv) {
 			panic(fmt.Errorf("tag %q already exists on remote", cfg.Tag))
 		}
 
-		lang.Return(run.Command("git", run.Args("push", "origin", cfg.Tag), authEnv))
+		lang.Return(run.Command("git", noCredentialStore, run.Args("push", "origin", cfg.Tag), authEnv))
 	})
 }
 
@@ -244,8 +289,11 @@ func tagExistsLocally(tag string) bool {
 // performed against the same authenticated remote the caller is about to push
 // to, rather than whatever remote URL the runner started with.
 func tagExistsRemotely(tag string, extraOpts ...run.Option) bool {
-	opts := []run.Option{run.Args("ls-remote", "--tags", "origin", "refs/tags/"+tag), run.NoFail(), run.Quiet()}
-	opts = append(opts, extraOpts...)
+	// apply extraOpts first so any leading git flags they carry (e.g.
+	// "-c credential.helper=") land before the ls-remote subcommand, where git
+	// requires them. Env-only options are order-independent.
+	opts := append([]run.Option{}, extraOpts...)
+	opts = append(opts, run.Args("ls-remote", "--tags", "origin", "refs/tags/"+tag), run.NoFail(), run.Quiet())
 	output, _ := run.Command("git", opts...)
 	return strings.TrimSpace(output) != ""
 }
@@ -264,4 +312,45 @@ func setGitConfig(key, value string) {
 // unsetGitConfig unsets a git config value.
 func unsetGitConfig(key string) {
 	_, _ = run.Command("git", run.Args("config", "--unset", key), run.NoFail(), run.Quiet())
+}
+
+// unsetAllGitConfig removes every value for a git config key. Unlike
+// unsetGitConfig (git config --unset), --unset-all also clears multi-valued
+// keys and does not error when the key holds more than one value.
+func unsetAllGitConfig(key string) {
+	_, _ = run.Command("git", run.Args("config", "--unset-all", key), run.NoFail(), run.Quiet())
+}
+
+// addGitConfig appends a value to a git config key without replacing existing
+// values, so a multi-valued key (e.g. several extraheader entries) can be
+// rebuilt one value at a time.
+func addGitConfig(key, value string) {
+	lang.Return(run.Command("git", run.Args("config", "--add", key, value)))
+}
+
+// gitConfigEntry is a single key/value pair as reported by
+// `git config --get-regexp`.
+type gitConfigEntry struct {
+	key   string
+	value string
+}
+
+// getGitConfigRegexp returns all git config entries whose key matches the given
+// regular expression, in the order git reports them. Used to discover persisted
+// credentials (e.g. http.<server>.extraheader entries) that must be cleared
+// before a token-authenticated push.
+func getGitConfigRegexp(pattern string) []gitConfigEntry {
+	output, _ := run.Command("git", run.Args("config", "--get-regexp", pattern), run.NoFail(), run.Quiet())
+
+	var entries []gitConfigEntry
+	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
+		if line == "" {
+			continue
+		}
+		// git prints each match as "<key> <value>"; an extraheader value contains
+		// spaces, so split on the first space only.
+		key, value, _ := strings.Cut(line, " ")
+		entries = append(entries, gitConfigEntry{key: key, value: value})
+	}
+	return entries
 }
