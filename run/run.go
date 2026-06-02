@@ -13,6 +13,7 @@ import (
 
 	"github.com/anchore/go-make/color"
 	"github.com/anchore/go-make/config"
+	"github.com/anchore/go-make/internal/redact"
 	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
 	"github.com/anchore/go-make/stream"
@@ -60,7 +61,7 @@ func Command(cmd string, opts ...Option) (string, error) {
 			dropped = append(dropped, nameValue[0])
 			continue
 		}
-		log.Trace(color.Grey("adding environment entry: %v", env[i]))
+		log.Trace(color.Grey("adding environment entry: %v", redactEnvEntry(env[i])))
 		c.Env = append(c.Env, env[i])
 	}
 
@@ -89,7 +90,9 @@ func Command(cmd string, opts ...Option) (string, error) {
 		}
 	}
 
-	args := shortenedArgs(c.Args[1:]) // exec.Command sets the cmd to Args[0]
+	// args is display-only (execution is driven by c); redact credential-looking
+	// values so a "--token=..." style argument never reaches the log line.
+	args := redact.Args(shortenedArgs(c.Args[1:])) // exec.Command sets the cmd to Args[0]
 
 	logFunc := log.Info
 	if cfg.quiet {
@@ -97,8 +100,11 @@ func Command(cmd string, opts ...Option) (string, error) {
 	}
 	logFunc("$ %v %v", displayPath(cmd), strings.Join(args, " "))
 
-	// print out c.Env -- GOROOT vs GOBIN
-	log.Trace("ENV: %v", c.Env)
+	// print out c.Env -- GOROOT vs GOBIN. Values of credential-looking entries
+	// (TOKEN/SECRET/PASSWORD/KEY/CREDENTIAL/...) are redacted so that turning
+	// on trace logging in CI to diagnose a problem doesn't dump tokens or
+	// deploy keys to stderr.
+	log.Trace("ENV: %v", redactEnvList(c.Env))
 
 	// WaitDelay specifies the time to wait after context cancellation (and the Cancel func
 	// being called) before force-killing the process.
@@ -120,9 +126,13 @@ func Command(cmd string, opts ...Option) (string, error) {
 		if stderr.Len() > 0 {
 			fullStdOut += "\nSTDERR:\n" + stderr.String()
 		}
+		// scrub known secret shapes from the captured output before it is
+		// attached to the error: HandleErrors prints WithLog at info level, so a
+		// credential echoed by a failing command would otherwise leak even
+		// without debug logging enabled.
 		err = lang.NewStackTraceError(fmt.Errorf("error executing: '%s %s': %w", cmd, printArgs(opts), err)).
 			WithExitCode(exitCode).
-			WithLog(fullStdOut)
+			WithLog(redact.Secrets(fullStdOut))
 	}
 	if err != nil || exitCode > 0 {
 		if cfg.noFail {
@@ -322,6 +332,27 @@ func skipEnvVar(s string) bool {
 	return false
 }
 
+// redactEnvEntry returns a "NAME=VALUE" entry with the value replaced by
+// "***" when the name looks like a credential (see redact.IsSensitiveName).
+// Non-sensitive entries are returned unchanged. Used so trace logging can show
+// the shape of the environment without ever printing token bodies.
+func redactEnvEntry(entry string) string {
+	name, value, ok := strings.Cut(entry, "=")
+	if !ok {
+		return entry
+	}
+	return name + "=" + redact.Value(name, value)
+}
+
+// redactEnvList applies redactEnvEntry to each entry, returning a new slice.
+func redactEnvList(env []string) []string {
+	out := make([]string, len(env))
+	for i, e := range env {
+		out[i] = redactEnvEntry(e)
+	}
+	return out
+}
+
 func displayPath(cmd string) string {
 	if config.Debug {
 		return auxParent(cmd)
@@ -360,16 +391,19 @@ func printArgs(args []Option) string {
 	for _, arg := range args {
 		_ = arg(context.TODO(), &c)
 	}
-	for i, arg := range c.Args {
+	// redact credential-looking values so the rendered command line in an error
+	// message can't leak a secret passed as an argument.
+	argv := redact.Args(c.Args)
+	for i, arg := range argv {
 		if strings.Contains(arg, " ") {
 			if strings.Contains(arg, `'`) {
-				c.Args[i] = `"` + arg + `"`
+				argv[i] = `"` + arg + `"`
 			} else {
-				c.Args[i] = "'" + arg + "'"
+				argv[i] = "'" + arg + "'"
 			}
 		}
 	}
-	return strings.Join(c.Args, " ")
+	return strings.Join(argv, " ")
 }
 
 type runConfig struct {

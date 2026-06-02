@@ -37,9 +37,9 @@ func ReleaseTask() Task {
 		Run: func() {
 			file.Require(configName)
 
-			tagName, deployKey := ci.ReleaseInputs()
+			tagName := ci.ReleaseTagInput()
 
-			ci.PublishTag(tagName, deployKey)
+			ci.PublishTag(tagName)
 			changelogFile, _ := release.GenerateAndShowChangelog()
 
 			Run(`goreleaser release --clean --release-notes`, run.Args(changelogFile))

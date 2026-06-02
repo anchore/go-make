@@ -648,6 +648,11 @@ func TestIntegrationPushTagRejectsExistingRemoteTag(t *testing.T) {
 
 	testKey := generateTestDeployKey(t)
 
+	// point the push at the local bare origin. Without this, PushTag switches the
+	// remote to git@github.com:owner/repo.git and the existence check runs against
+	// real GitHub (unreachable here) instead of the tag we just pushed locally.
+	redirectRemoteToLocal(t, repo.originPath)
+
 	// create and push tag to origin first
 	repo.runGit("tag", "v1.0.0")
 	repo.runGit("push", "origin", "v1.0.0")
@@ -669,4 +674,162 @@ func TestIntegrationPushTagRejectsExistingRemoteTag(t *testing.T) {
 		Repository: "owner/repo",
 		DeployKey:  testKey,
 	})
+}
+
+// redirectRemoteToLocal points the production remote-URL builders at a local
+// bare repo for the duration of the test, so PushTag's ls-remote and push run
+// against the local filesystem instead of github.com. Both transports collapse
+// to the same filesystem path (git ignores the SSH/HTTPS auth setup when the
+// remote is a local path), which lets the token and deploy-key paths be
+// exercised end-to-end offline.
+func redirectRemoteToLocal(t *testing.T, originPath string) {
+	t.Helper()
+	require.SetAndRestore(t, &sshRemoteURL, func(string) string { return originPath })
+	require.SetAndRestore(t, &httpsRemoteURL, func(string) string { return originPath })
+}
+
+// validTestToken is a syntactically valid GitHub token (passes validateTagToken)
+// used by the token-path integration tests. Its value is never authenticated
+// because the push targets a local bare repo.
+const validTestToken = "ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+
+// TestIntegrationPushTagWithTokenSucceeds verifies the HTTPS/token path pushes
+// the tag end-to-end: PushTag dispatches to pushTagWithToken, and the tag lands
+// on the (local, stand-in) remote.
+func TestIntegrationPushTagWithTokenSucceeds(t *testing.T) {
+	if !runInDockerIfNeeded(t) {
+		return
+	}
+	requireLinux(t)
+
+	repo := newIsolatedGitRepo(t)
+	repo.setup()
+	restore := repo.chdir()
+	defer restore()
+
+	redirectRemoteToLocal(t, repo.originPath)
+
+	// create the tag locally but do not push it yet; PushTag should push it
+	repo.runGit("tag", "v1.0.0")
+
+	PushTag(PushTagConfig{
+		Tag:        "v1.0.0",
+		Repository: "owner/repo",
+		TagToken:   validTestToken,
+	})
+
+	// the tag should now exist on the remote
+	remoteTags := repo.runGit("ls-remote", "--tags", "origin", "refs/tags/v1.0.0")
+	require.Contains(t, remoteTags, "refs/tags/v1.0.0")
+}
+
+// TestIntegrationPushTagWithTokenRejectsExistingRemoteTag verifies the token
+// path also refuses to clobber a tag that already exists on the remote.
+func TestIntegrationPushTagWithTokenRejectsExistingRemoteTag(t *testing.T) {
+	if !runInDockerIfNeeded(t) {
+		return
+	}
+	requireLinux(t)
+
+	repo := newIsolatedGitRepo(t)
+	repo.setup()
+	restore := repo.chdir()
+	defer restore()
+
+	redirectRemoteToLocal(t, repo.originPath)
+
+	// create and push tag to origin first so it already exists remotely
+	repo.runGit("tag", "v1.0.0")
+	repo.runGit("push", "origin", "v1.0.0")
+
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected PushTag to panic for tag that exists on remote")
+		}
+		err, ok := r.(error)
+		if !ok {
+			t.Fatalf("expected error, got %T: %v", r, r)
+		}
+		require.Contains(t, err.Error(), "already exists on remote")
+	}()
+
+	PushTag(PushTagConfig{
+		Tag:        "v1.0.0",
+		Repository: "owner/repo",
+		TagToken:   validTestToken,
+	})
+}
+
+// TestIntegrationPushTagWithTokenPreservesPersistedAuthHeaders verifies the
+// token path tolerates a persisted http.*.extraheader (what actions/checkout
+// writes) and leaves the stored config untouched: it neutralizes the header
+// per-command via "-c <key>=" rather than stripping it, so the entry is still
+// present, unchanged, after the push completes.
+func TestIntegrationPushTagWithTokenPreservesPersistedAuthHeaders(t *testing.T) {
+	if !runInDockerIfNeeded(t) {
+		return
+	}
+	requireLinux(t)
+
+	repo := newIsolatedGitRepo(t)
+	repo.setup()
+	restore := repo.chdir()
+	defer restore()
+
+	redirectRemoteToLocal(t, repo.originPath)
+
+	// simulate the credential actions/checkout persists into the local config,
+	// including a second value to exercise the multi-valued case.
+	const extraHeaderKey = "http.https://github.com/.extraheader"
+	repo.runGit("config", "--add", extraHeaderKey, "AUTHORIZATION: basic dG9rZW4=")
+	repo.runGit("config", "--add", extraHeaderKey, "AUTHORIZATION: bearer second")
+
+	repo.runGit("tag", "v1.0.0")
+
+	PushTag(PushTagConfig{
+		Tag:        "v1.0.0",
+		Repository: "owner/repo",
+		TagToken:   validTestToken,
+	})
+
+	// the persisted header must be left exactly as it was: the token path never
+	// mutates stored config, so both values remain in their original order.
+	got := repo.runGit("config", "--get-all", extraHeaderKey)
+	require.Equal(t, "AUTHORIZATION: basic dG9rZW4=\nAUTHORIZATION: bearer second\n", got)
+}
+
+// TestIntegrationGitConfigKeysMatching verifies the value-free discovery behind
+// pushTagWithToken: gitConfigKeysMatching returns the distinct key NAMES of
+// persisted http.*.extraheader entries (what actions/checkout writes) without
+// ever reading their values, and collapses a multi-valued key to a single name.
+func TestIntegrationGitConfigKeysMatching(t *testing.T) {
+	if !runInDockerIfNeeded(t) {
+		return
+	}
+	requireLinux(t)
+
+	repo := newIsolatedGitRepo(t)
+	repo.setup()
+	restore := repo.chdir()
+	defer restore()
+
+	const key = "http.https://github.com/.extraheader"
+	// a multi-valued key: gitConfigKeysMatching must still report it just once.
+	repo.runGit("config", "--add", key, "AUTHORIZATION: basic dG9rZW4=")
+	repo.runGit("config", "--add", key, "AUTHORIZATION: bearer second")
+
+	keys := gitConfigKeysMatching(`^http\..*\.extraheader$`)
+
+	require.Equal(t, []string{key}, keys)
+
+	// the returned key name must not carry the (secret) header value.
+	for _, k := range keys {
+		require.False(t, strings.Contains(k, "AUTHORIZATION"))
+		require.False(t, strings.Contains(k, "dG9rZW4="))
+	}
+
+	// discovery must not mutate the stored config.
+	got := repo.runGit("config", "--get-all", key)
+	require.Equal(t, "AUTHORIZATION: basic dG9rZW4=\nAUTHORIZATION: bearer second\n", got)
 }

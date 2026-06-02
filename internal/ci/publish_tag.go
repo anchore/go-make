@@ -8,8 +8,14 @@ import (
 	"github.com/anchore/go-make/log"
 )
 
-func PublishTag(tagName, deployKey string) {
+// PublishTag creates a release tag locally and pushes it to the GitHub remote.
+// The credentials used for the push are fetched from the environment via
+// ReleasePushCredentials, which prefers TAG_TOKEN (HTTPS) and falls back to
+// DEPLOY_KEY (SSH).
+func PublishTag(tagName string) {
 	EnsureInCI()
+
+	deployKey, tagToken := ReleasePushCredentials()
 
 	repository := os.Getenv("GITHUB_REPOSITORY")
 	if repository == "" {
@@ -20,7 +26,7 @@ func PublishTag(tagName, deployKey string) {
 	gitUserName := lang.Default(os.Getenv("GIT_USER_NAME"), "github-actions[bot]")
 	gitUserEmail := lang.Default(os.Getenv("GIT_USER_EMAIL"), "github-actions[bot]@users.noreply.github.com")
 
-	// create the tag locally first (no deploy key needed)
+	// create the tag locally first (no credentials needed)
 	sha := git.CreateTag(git.CreateTagConfig{
 		Tag:          tagName,
 		TagMessage:   tagMessage,
@@ -30,10 +36,12 @@ func PublishTag(tagName, deployKey string) {
 
 	log.Info("created local tag %s at %s", tagName, sha)
 
-	// push the tag to remote (needs deploy key)
+	// push the tag to remote — PushTag dispatches to SSH or HTTPS based on which
+	// credential is non-empty (ReleasePushCredentials guarantees exactly one is)
 	git.PushTag(git.PushTagConfig{
 		Tag:        tagName,
 		DeployKey:  deployKey,
+		TagToken:   tagToken,
 		Repository: repository,
 	})
 
