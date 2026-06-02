@@ -62,6 +62,6 @@ jobs:
       - name: Create release
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          TAG_TOKEN: ${{ secrets.TAG_TOKEN }}
           RELEASE_VERSION: ${{ github.event.inputs.version }}
         run: make ci-release
