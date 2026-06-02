@@ -13,6 +13,7 @@ import (
 
 	"github.com/anchore/go-make/color"
 	"github.com/anchore/go-make/config"
+	"github.com/anchore/go-make/internal/redact"
 	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
 	"github.com/anchore/go-make/stream"
@@ -89,7 +90,9 @@ func Command(cmd string, opts ...Option) (string, error) {
 		}
 	}
 
-	args := shortenedArgs(c.Args[1:]) // exec.Command sets the cmd to Args[0]
+	// args is display-only (execution is driven by c); redact credential-looking
+	// values so a "--token=..." style argument never reaches the log line.
+	args := redact.Args(shortenedArgs(c.Args[1:])) // exec.Command sets the cmd to Args[0]
 
 	logFunc := log.Info
 	if cfg.quiet {
@@ -123,9 +126,13 @@ func Command(cmd string, opts ...Option) (string, error) {
 		if stderr.Len() > 0 {
 			fullStdOut += "\nSTDERR:\n" + stderr.String()
 		}
+		// scrub known secret shapes from the captured output before it is
+		// attached to the error: HandleErrors prints WithLog at info level, so a
+		// credential echoed by a failing command would otherwise leak even
+		// without debug logging enabled.
 		err = lang.NewStackTraceError(fmt.Errorf("error executing: '%s %s': %w", cmd, printArgs(opts), err)).
 			WithExitCode(exitCode).
-			WithLog(fullStdOut)
+			WithLog(redact.Secrets(fullStdOut))
 	}
 	if err != nil || exitCode > 0 {
 		if cfg.noFail {
@@ -325,46 +332,16 @@ func skipEnvVar(s string) bool {
 	return false
 }
 
-// sensitiveEnvSubstrings are substrings (uppercased) whose presence in an env
-// var NAME flags the entry as credential-bearing for trace-log redaction. The
-// list is conservative — false positives only cost log readability, while
-// false negatives leak secrets to anyone with trace logging enabled.
-var sensitiveEnvSubstrings = []string{
-	"TOKEN",
-	"SECRET",
-	"PASSWORD",
-	"PASSWD",
-	"PASSPHRASE",
-	"CREDENTIAL",
-	"_KEY", // DEPLOY_KEY, PRIVATE_KEY, API_KEY, AWS_SECRET_ACCESS_KEY, ...
-	"KEY_",
-	"AUTH",
-}
-
-// isSensitiveEnvName reports whether the env var name looks like a credential.
-func isSensitiveEnvName(name string) bool {
-	upper := strings.ToUpper(name)
-	for _, s := range sensitiveEnvSubstrings {
-		if strings.Contains(upper, s) {
-			return true
-		}
-	}
-	return false
-}
-
 // redactEnvEntry returns a "NAME=VALUE" entry with the value replaced by
-// "***" when the name looks like a credential. Non-sensitive entries are
-// returned unchanged. Used so trace logging can show the shape of the
-// environment without ever printing token bodies.
+// "***" when the name looks like a credential (see redact.IsSensitiveName).
+// Non-sensitive entries are returned unchanged. Used so trace logging can show
+// the shape of the environment without ever printing token bodies.
 func redactEnvEntry(entry string) string {
-	name, _, ok := strings.Cut(entry, "=")
+	name, value, ok := strings.Cut(entry, "=")
 	if !ok {
 		return entry
 	}
-	if isSensitiveEnvName(name) {
-		return name + "=***"
-	}
-	return entry
+	return name + "=" + redact.Value(name, value)
 }
 
 // redactEnvList applies redactEnvEntry to each entry, returning a new slice.
@@ -414,16 +391,19 @@ func printArgs(args []Option) string {
 	for _, arg := range args {
 		_ = arg(context.TODO(), &c)
 	}
-	for i, arg := range c.Args {
+	// redact credential-looking values so the rendered command line in an error
+	// message can't leak a secret passed as an argument.
+	argv := redact.Args(c.Args)
+	for i, arg := range argv {
 		if strings.Contains(arg, " ") {
 			if strings.Contains(arg, `'`) {
-				c.Args[i] = `"` + arg + `"`
+				argv[i] = `"` + arg + `"`
 			} else {
-				c.Args[i] = "'" + arg + "'"
+				argv[i] = "'" + arg + "'"
 			}
 		}
 	}
-	return strings.Join(c.Args, " ")
+	return strings.Join(argv, " ")
 }
 
 type runConfig struct {

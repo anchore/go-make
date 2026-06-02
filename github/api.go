@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -291,7 +293,9 @@ var envFile = sync.OnceValue(func() map[string]string {
 		defer lang.Close(f, p)
 		log.Error(json.NewDecoder(f).Decode(&out))
 	}
-	log.Debug("read env file %v: %v", p, out)
+	// log only the key names: this file holds credentials (GITHUB_TOKEN, ...),
+	// so the values must never be printed.
+	log.Debug("read env file %v with keys: %v", p, slices.Sorted(maps.Keys(out)))
 	return out
 })
 

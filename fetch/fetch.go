@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/anchore/go-make/internal/redact"
 	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
 )
@@ -25,6 +26,21 @@ func Headers(headers map[string]string) Option {
 		}
 		return nil
 	}
+}
+
+// redactHeaders returns a copy of h with the values of credential-bearing
+// headers (Authorization, Cookie, ...) masked, so request headers can be logged
+// for diagnostics without dumping the bearer token.
+func redactHeaders(h http.Header) http.Header {
+	out := make(http.Header, len(h))
+	for k, values := range h {
+		if redact.IsSensitiveName(k) {
+			out[k] = []string{redact.Mask}
+			continue
+		}
+		out[k] = values
+	}
+	return out
 }
 
 // Writer redirects the response body to the provided writer instead of returning
@@ -71,8 +87,8 @@ func Fetch(urlString string, options ...Option) (contents string, err error) {
 		lang.Throw(option(&opts))
 	}
 
-	log.Info("fetch: %s", urlString)
-	log.Debug("  └─ headers: %v", req.Header)
+	log.Info("fetch: %s", redact.Secrets(urlString))
+	log.Debug("  └─ headers: %v", redactHeaders(req.Header))
 
 	rsp := lang.Return(client.Do(req)) //nolint:bodyclose
 	defer lang.Close(rsp.Body, urlString)
