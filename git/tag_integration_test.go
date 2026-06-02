@@ -761,10 +761,12 @@ func TestIntegrationPushTagWithTokenRejectsExistingRemoteTag(t *testing.T) {
 	})
 }
 
-// TestIntegrationPushTagWithTokenStripsPersistedAuthHeaders verifies the token
-// path strips a persisted http.*.extraheader (what actions/checkout writes)
-// before pushing and restores it afterward.
-func TestIntegrationPushTagWithTokenStripsPersistedAuthHeaders(t *testing.T) {
+// TestIntegrationPushTagWithTokenPreservesPersistedAuthHeaders verifies the
+// token path tolerates a persisted http.*.extraheader (what actions/checkout
+// writes) and leaves the stored config untouched: it neutralizes the header
+// per-command via "-c <key>=" rather than stripping it, so the entry is still
+// present, unchanged, after the push completes.
+func TestIntegrationPushTagWithTokenPreservesPersistedAuthHeaders(t *testing.T) {
 	if !runInDockerIfNeeded(t) {
 		return
 	}
@@ -777,9 +779,11 @@ func TestIntegrationPushTagWithTokenStripsPersistedAuthHeaders(t *testing.T) {
 
 	redirectRemoteToLocal(t, repo.originPath)
 
-	// simulate the credential actions/checkout persists into the local config
+	// simulate the credential actions/checkout persists into the local config,
+	// including a second value to exercise the multi-valued case.
 	const extraHeaderKey = "http.https://github.com/.extraheader"
 	repo.runGit("config", "--add", extraHeaderKey, "AUTHORIZATION: basic dG9rZW4=")
+	repo.runGit("config", "--add", extraHeaderKey, "AUTHORIZATION: bearer second")
 
 	repo.runGit("tag", "v1.0.0")
 
@@ -789,16 +793,17 @@ func TestIntegrationPushTagWithTokenStripsPersistedAuthHeaders(t *testing.T) {
 		TagToken:   validTestToken,
 	})
 
-	// the persisted header must be restored after the push completes
+	// the persisted header must be left exactly as it was: the token path never
+	// mutates stored config, so both values remain in their original order.
 	got := repo.runGit("config", "--get-all", extraHeaderKey)
-	require.Equal(t, "AUTHORIZATION: basic dG9rZW4=\n", got)
+	require.Equal(t, "AUTHORIZATION: basic dG9rZW4=\nAUTHORIZATION: bearer second\n", got)
 }
 
-// TestIntegrationStripAndRestoreExtraHeaders verifies the credential-isolation
-// helpers behind pushTagWithToken: it discovers persisted http.*.extraheader
-// entries (what actions/checkout writes), strips them, and restores them
-// faithfully — including a multi-valued key, whose ordering must be preserved.
-func TestIntegrationStripAndRestoreExtraHeaders(t *testing.T) {
+// TestIntegrationGitConfigKeysMatching verifies the value-free discovery behind
+// pushTagWithToken: gitConfigKeysMatching returns the distinct key NAMES of
+// persisted http.*.extraheader entries (what actions/checkout writes) without
+// ever reading their values, and collapses a multi-valued key to a single name.
+func TestIntegrationGitConfigKeysMatching(t *testing.T) {
 	if !runInDockerIfNeeded(t) {
 		return
 	}
@@ -810,25 +815,21 @@ func TestIntegrationStripAndRestoreExtraHeaders(t *testing.T) {
 	defer restore()
 
 	const key = "http.https://github.com/.extraheader"
-	// simulate what actions/checkout persists, with a second value on the same
-	// key to exercise the multi-valued restore path.
+	// a multi-valued key: gitConfigKeysMatching must still report it just once.
 	repo.runGit("config", "--add", key, "AUTHORIZATION: basic dG9rZW4=")
 	repo.runGit("config", "--add", key, "AUTHORIZATION: bearer second")
 
-	// discover exactly as pushTagWithToken does
-	headers := getGitConfigRegexp(`^http\..*\.extraheader$`)
-	require.Equal(t, 2, len(headers))
+	keys := gitConfigKeysMatching(`^http\..*\.extraheader$`)
 
-	// strip, then confirm git no longer reports the key
-	for _, h := range headers {
-		unsetAllGitConfig(h.key)
-	}
-	require.Equal(t, 0, len(getGitConfigRegexp(`^http\..*\.extraheader$`)))
+	require.Equal(t, []string{key}, keys)
 
-	// restore, then confirm both values return in their original order
-	for _, h := range headers {
-		addGitConfig(h.key, h.value)
+	// the returned key name must not carry the (secret) header value.
+	for _, k := range keys {
+		require.False(t, strings.Contains(k, "AUTHORIZATION"))
+		require.False(t, strings.Contains(k, "dG9rZW4="))
 	}
+
+	// discovery must not mutate the stored config.
 	got := repo.runGit("config", "--get-all", key)
 	require.Equal(t, "AUTHORIZATION: basic dG9rZW4=\nAUTHORIZATION: bearer second\n", got)
 }

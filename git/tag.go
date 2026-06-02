@@ -157,6 +157,15 @@ func pushTagWithDeployKey(cfg PushTagConfig) {
 func pushTagWithToken(cfg PushTagConfig) {
 	origRemoteURL := getGitConfig("remote.origin.url")
 
+	defer func() {
+		log.Debug("restoring original git configuration")
+		if origRemoteURL != "" {
+			setGitConfig("remote.origin.url", origRemoteURL)
+		} else {
+			unsetGitConfig("remote.origin.url")
+		}
+	}()
+
 	// CI checkout steps (notably actions/checkout) persist the job's default
 	// credentials into the repo's local git config as one or more
 	// http.<server>.extraheader entries, e.g.
@@ -168,24 +177,17 @@ func pushTagWithToken(cfg PushTagConfig) {
 	// so git never invokes GIT_ASKPASS and the token we supply below is silently
 	// ignored — the push goes out as the persisted checkout credential (usually
 	// github-actions[bot]) instead of cfg.TagToken.
-	persistedAuthHeaders := getGitConfigRegexp(`^http\..*\.extraheader$`)
-	for _, h := range persistedAuthHeaders {
-		unsetAllGitConfig(h.key)
-	}
-
-	defer func() {
-		log.Debug("restoring original git configuration")
-		if origRemoteURL != "" {
-			setGitConfig("remote.origin.url", origRemoteURL)
-		} else {
-			unsetGitConfig("remote.origin.url")
-		}
-		// re-add the auth headers we stripped above, preserving order so a
-		// multi-valued key is restored exactly as we found it.
-		for _, h := range persistedAuthHeaders {
-			addGitConfig(h.key, h.value)
-		}
-	}()
+	//
+	// We suppress those headers WITHOUT ever reading their values: we discover
+	// the matching config KEY NAMES (the token value is never loaded into this
+	// process) and pass "-c <key>=" on our own git invocations. An empty
+	// extraheader value resets that key's header list for just those commands,
+	// so the persisted credential is neutralized for our push while the stored
+	// config is left untouched for any later step that relies on it. We
+	// deliberately avoid stripping-and-restoring the entries, which would put
+	// the token on a "git config --add ..." command line (logged at info level,
+	// visible in ps).
+	suppressAuthHeaders := suppressExtraHeaderOpts(`^http\..*\.extraheader$`)
 
 	file.WithTempDir(func(tmpDir string) {
 		// write the askpass helper. The script reads the token from an env var
@@ -224,11 +226,11 @@ func pushTagWithToken(cfg PushTagConfig) {
 
 		// check remote tag existence against the NEW (HTTPS, authenticated)
 		// remote rather than whatever URL the runner started with.
-		if tagExistsRemotely(cfg.Tag, noCredentialStore, authEnv) {
+		if tagExistsRemotely(cfg.Tag, suppressAuthHeaders, noCredentialStore, authEnv) {
 			panic(fmt.Errorf("tag %q already exists on remote", cfg.Tag))
 		}
 
-		lang.Return(run.Command("git", noCredentialStore, run.Args("push", "origin", cfg.Tag), authEnv))
+		lang.Return(run.Command("git", suppressAuthHeaders, noCredentialStore, run.Args("push", "origin", cfg.Tag), authEnv))
 	})
 }
 
@@ -314,43 +316,41 @@ func unsetGitConfig(key string) {
 	_, _ = run.Command("git", run.Args("config", "--unset", key), run.NoFail(), run.Quiet())
 }
 
-// unsetAllGitConfig removes every value for a git config key. Unlike
-// unsetGitConfig (git config --unset), --unset-all also clears multi-valued
-// keys and does not error when the key holds more than one value.
-func unsetAllGitConfig(key string) {
-	_, _ = run.Command("git", run.Args("config", "--unset-all", key), run.NoFail(), run.Quiet())
-}
+// gitConfigKeysMatching returns the distinct git config key NAMES whose key
+// matches the given regular expression. It uses `git config --name-only` so the
+// values are never read into this process — important when the values are
+// credentials (e.g. http.<server>.extraheader entries that hold a token). A
+// multi-valued key appears once in the result even though git lists it per
+// value.
+func gitConfigKeysMatching(pattern string) []string {
+	output, _ := run.Command("git", run.Args("config", "--name-only", "--get-regexp", pattern), run.NoFail(), run.Quiet())
 
-// addGitConfig appends a value to a git config key without replacing existing
-// values, so a multi-valued key (e.g. several extraheader entries) can be
-// rebuilt one value at a time.
-func addGitConfig(key, value string) {
-	lang.Return(run.Command("git", run.Args("config", "--add", key, value)))
-}
-
-// gitConfigEntry is a single key/value pair as reported by
-// `git config --get-regexp`.
-type gitConfigEntry struct {
-	key   string
-	value string
-}
-
-// getGitConfigRegexp returns all git config entries whose key matches the given
-// regular expression, in the order git reports them. Used to discover persisted
-// credentials (e.g. http.<server>.extraheader entries) that must be cleared
-// before a token-authenticated push.
-func getGitConfigRegexp(pattern string) []gitConfigEntry {
-	output, _ := run.Command("git", run.Args("config", "--get-regexp", pattern), run.NoFail(), run.Quiet())
-
-	var entries []gitConfigEntry
+	var keys []string
+	seen := make(map[string]bool)
 	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
-		if line == "" {
+		key := strings.TrimSpace(line)
+		if key == "" || seen[key] {
 			continue
 		}
-		// git prints each match as "<key> <value>"; an extraheader value contains
-		// spaces, so split on the first space only.
-		key, value, _ := strings.Cut(line, " ")
-		entries = append(entries, gitConfigEntry{key: key, value: value})
+		seen[key] = true
+		keys = append(keys, key)
 	}
-	return entries
+	return keys
+}
+
+// suppressExtraHeaderOpts builds git options that neutralize every persisted
+// http.*.extraheader config entry matching pattern, for the duration of a
+// single git invocation, without reading or mutating the stored values. For
+// each matching key it emits "-c <key>=": git treats an empty extraheader value
+// as a reset of that key's header list, so any persisted Authorization header
+// is dropped from the request. The key names (URL + "extraheader") carry no
+// secret, so they are safe to place on the command line. Returns a no-op option
+// when nothing matches.
+func suppressExtraHeaderOpts(pattern string) run.Option {
+	keys := gitConfigKeysMatching(pattern)
+	args := make([]string, 0, len(keys)*2)
+	for _, key := range keys {
+		args = append(args, "-c", key+"=")
+	}
+	return run.Args(args...)
 }
