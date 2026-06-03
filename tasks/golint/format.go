@@ -3,6 +3,7 @@ package golint
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -126,22 +127,16 @@ func toRunOpts(options []Option) []run.Option {
 }
 
 func findMalformedFilenames(root string) error {
+	paths, err := listCommittablePaths(root)
+	if err != nil {
+		return fmt.Errorf("error walking through files: %w", err)
+	}
+
 	var malformedFilenames []string
-
-	err := filepath.Walk(root, func(path string, _ os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// check if the filename contains the ':' character
+	for _, path := range paths {
 		if strings.Contains(path, ":") {
 			malformedFilenames = append(malformedFilenames, path)
 		}
-		return nil
-	})
-
-	if err != nil {
-		return fmt.Errorf("error walking through files: %w", err)
 	}
 
 	if len(malformedFilenames) > 0 {
@@ -153,4 +148,39 @@ func findMalformedFilenames(root string) error {
 	}
 
 	return nil
+}
+
+// listCommittablePaths returns the set of paths under root that could plausibly
+// be committed: tracked files plus untracked-but-not-ignored files, as reported
+// by `git ls-files`. Submodules are listed by their directory entry only — their
+// inner files are never walked. Falls back to a plain filesystem walk when root
+// is not inside a git working tree (or git is unavailable).
+func listCommittablePaths(root string) ([]string, error) {
+	if paths, ok := gitListFiles(root); ok {
+		return paths, nil
+	}
+
+	var paths []string
+	err := filepath.Walk(root, func(path string, _ os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		paths = append(paths, path)
+		return nil
+	})
+	return paths, err
+}
+
+func gitListFiles(root string) ([]string, bool) {
+	cmd := exec.Command("git", "-C", root, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
+	cmd.Stderr = io.Discard
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, false
+	}
+	raw := strings.TrimRight(string(out), "\x00")
+	if raw == "" {
+		return nil, true
+	}
+	return strings.Split(raw, "\x00"), true
 }
