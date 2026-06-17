@@ -3,14 +3,13 @@ package goreleaser
 import (
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	. "github.com/anchore/go-make"
 	"github.com/anchore/go-make/file"
 	"github.com/anchore/go-make/lang"
 )
 
-func runSnapshot(extraArgs ...string) {
+func runSnapshot(singleTarget bool) {
 	file.Require(configName)
 
 	file.WithTempDir(func(tempDir string) {
@@ -24,12 +23,20 @@ func runSnapshot(extraArgs ...string) {
 
 		file.Write(dstConfig, configContent)
 
-		args := fmt.Sprintf(`goreleaser release --clean --snapshot --skip=publish --skip=sign --config=%s`, dstConfig)
-		if len(extraArgs) > 0 {
-			args += " " + strings.Join(extraArgs, " ")
-		}
-		Run(args)
+		Run(snapshotArgs(dstConfig, singleTarget))
 	})
+}
+
+// snapshotArgs builds the goreleaser command for a snapshot build. single-target
+// builds use `goreleaser build` (current OS/arch only) because --single-target is
+// a build-only flag — `goreleaser release` rejects it with "unknown flag". Full
+// snapshots use `goreleaser release` to exercise the whole release pipeline
+// (archives, packages, etc.) while skipping publish and sign.
+func snapshotArgs(config string, singleTarget bool) string {
+	if singleTarget {
+		return fmt.Sprintf("goreleaser build --clean --snapshot --single-target --config=%s", config)
+	}
+	return fmt.Sprintf("goreleaser release --clean --snapshot --skip=publish --skip=sign --config=%s", config)
 }
 
 // SnapshotTasks creates tasks for building snapshot (non-release) builds with goreleaser.
@@ -44,13 +51,13 @@ func SnapshotTasks() Task {
 		Name:         "snapshot",
 		Description:  "build a snapshot release with goreleaser",
 		Dependencies: Deps("release:dependencies"),
-		Run:          func() { runSnapshot() },
+		Run:          func() { runSnapshot(false) },
 		Tasks: []Task{
 			{
 				Name:         "snapshot:single-target",
 				Description:  "build a snapshot release with goreleaser for a single target",
 				Dependencies: Deps("release:dependencies"),
-				Run:          func() { runSnapshot("--single-target") },
+				Run:          func() { runSnapshot(true) },
 			},
 			{
 				Name:        "snapshots:clean",
