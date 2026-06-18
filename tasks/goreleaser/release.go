@@ -19,7 +19,7 @@ func Tasks() Task {
 	return Task{
 		Tasks: []Task{
 			SnapshotTasks(),               // `make snapshot` to build a local snapshot to ./snapshot
-			ReleaseTask(),                 // `make ci-release` for building and publishing a release with goreleaser
+			ReleaseTask(),                 // `make ci:release` (alias `ci-release`) to build and publish a release with goreleaser
 			release.WorkflowReleaseTask(), // `make release` to trigger the release.yaml workflow
 			release.ChangelogTask(),       // `make changelog` to generate and show changes since the last release
 		},
@@ -28,11 +28,12 @@ func Tasks() Task {
 
 // ReleaseTask creates a task for running goreleaser in CI environments.
 // Requires CI=true, a version tag on HEAD, and optional quill/syft tools
-// for signing and SBOM generation.
+// for signing and SBOM generation. It has no Description so it stays hidden
+// from `help`.
 func ReleaseTask() Task {
 	return Task{
-		Name:         "ci-release",
-		Description:  "build and publish a release with goreleaser",
+		Name:         "ci:release",
+		Aliases:      []string{"ci-release"},
 		Dependencies: Deps("release:dependencies"),
 		Run: func() {
 			file.Require(configName)

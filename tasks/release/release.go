@@ -14,7 +14,7 @@ func Tasks() Task {
 		Tasks: []Task{
 			ChangelogTask(),       // `make chanagelog` to generate and show changes since the last release
 			WorkflowReleaseTask(), // `make release` to trigger the release.yaml workflow
-			TagReleaseTask(),      // `make ci-release` for publishing a tag and creating a GH release
+			TagReleaseTask(),      // `make ci:release` (alias `ci-release`) to publish a tag and create a GH release
 		},
 	}
 }
@@ -34,8 +34,8 @@ func Tasks() Task {
 //  5. Create the GitHub release with the changelog
 func TagReleaseTask() Task {
 	return Task{
-		Name:        "ci-release",
-		Description: "creates a GitHub release (to be run in CI only)",
+		Name:    "ci:release",
+		Aliases: []string{"ci-release"},
 		Run: func() {
 			ensureNoGoreleaserConfig()
 

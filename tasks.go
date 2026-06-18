@@ -26,6 +26,13 @@ type Task struct {
 	//   - Referencing in RunsOn labels
 	Name string
 
+	// Aliases are additional names that resolve to this task, e.g. for keeping a
+	// legacy name working after a rename. `make <alias>` runs this task. Aliases
+	// are not shown in help.
+	//
+	// Example: Name: "lint:fix", Aliases: List("lint-fix")
+	Aliases []string
+
 	// Description is shown in help output. Keep it brief and action-oriented.
 	Description string
 
@@ -249,7 +256,7 @@ func (t *taskRunner) runTask(name string) {
 func (t *taskRunner) findByName(name string) []*Task {
 	var out []*Task
 	for _, task := range t.tasks {
-		if task.Name == name {
+		if task.Name == name || slices.Contains(task.Aliases, name) {
 			out = append(out, task)
 		}
 	}
@@ -269,9 +276,11 @@ func (t *taskRunner) findByLabel(name string) []*Task {
 func (t *taskRunner) Makefile() {
 	buildCmdDir := strings.TrimLeft(strings.TrimPrefix(file.Cwd(), RootDir()), `\/`)
 	for _, t := range t.tasks {
-		fmt.Printf(".PHONY: %s\n", t.Name)
-		fmt.Printf("%s:\n", t.Name)
-		fmt.Printf("\t@go run -C %s . %s\n", buildCmdDir, t.Name)
+		for _, name := range append([]string{t.Name}, t.Aliases...) {
+			fmt.Printf(".PHONY: %s\n", name)
+			fmt.Printf("%s:\n", name)
+			fmt.Printf("\t@go run -C %s . %s\n", buildCmdDir, name)
+		}
 	}
 	// catch-all, could be the entire script except for FreeBSD
 	fmt.Printf(".PHONY: *\n")
