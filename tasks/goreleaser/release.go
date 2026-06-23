@@ -41,7 +41,9 @@ func ReleaseTask() Task {
 			tagName := ci.ReleaseTagInput()
 
 			ci.PublishTag(tagName)
-			changelogFile, _ := release.GenerateAndShowChangelog()
+			// fetch the pre-built changelog from the OCI cache (falls back to generating it
+			// with chronicle if the cache is unavailable)
+			changelogFile, _ := release.GetChangelog(tagName)
 
 			Run(`goreleaser release --clean --release-notes`, run.Args(changelogFile))
 		},

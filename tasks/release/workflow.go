@@ -55,11 +55,9 @@ func WorkflowReleaseTask() Task {
 			// ensure we have up-to-date git tags
 			Run("git fetch --tags")
 
-			GenerateAndShowChangelog()
-
-			// read next version from VERSION file
-			version := file.Read(versionFile)
-			nextVersion := strings.TrimSpace(version)
+			// use the pre-built changelog (and the version it carries) from the OCI cache,
+			// falling back to generating it with chronicle if the cache is unavailable
+			_, nextVersion := GetChangelog("")
 
 			if nextVersion == "" || nextVersion == "(Unreleased)" {
 				log.Info("Could not determine the next version to release. Exiting...")

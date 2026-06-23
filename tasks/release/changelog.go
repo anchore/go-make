@@ -6,7 +6,6 @@ import (
 
 	. "github.com/anchore/go-make"
 	"github.com/anchore/go-make/file"
-	"github.com/anchore/go-make/log"
 	"github.com/anchore/go-make/run"
 )
 
@@ -24,6 +23,11 @@ func ChangelogTask() Task {
 		Run:         func() { GenerateAndShowChangelog() },
 		Tasks: []Task{
 			{
+				Name:        "changelog:cache",
+				Description: "fetch the release changelog from the OCI cache (falls back to generating it)",
+				Run:         func() { GetChangelog("") },
+			},
+			{
 				Name: "clean",
 				Run: func() {
 					file.Delete(changelogFile)
@@ -37,16 +41,10 @@ func ChangelogTask() Task {
 // CHANGELOG.md, and displays it (using glow if available for better formatting).
 // Returns paths to the generated changelog and version files.
 func GenerateAndShowChangelog() (changelogFilePath, versionFilePath string) {
-	// gh auth status will fail the user is not authenticated
-	log.Debug(Run("gh auth status"))
-
-	ghAuthToken := Run("gh auth token")
-	log.Debug("Auth token: %.10s...", ghAuthToken)
-
 	Run(
 		fmt.Sprintf(`chronicle -n -o version=%s -o md=%s -o md-pretty`, versionFile, changelogFile),
 		run.Stdout(os.Stderr),
-		run.Env("GITHUB_TOKEN", ghAuthToken),
+		run.Env("GITHUB_TOKEN", githubToken()),
 	)
 
 	return changelogFile, versionFile
@@ -56,16 +54,10 @@ func GenerateAndShowChangelog() (changelogFilePath, versionFilePath string) {
 // --until-tag flag. This is useful when the tag already exists locally and we want to generate
 // the changelog up to and including that tag. Returns the changelog file path.
 func GenerateAndShowFromVersion(version string) string {
-	// gh auth status will fail the user is not authenticated
-	log.Debug(Run("gh auth status"))
-
-	ghAuthToken := Run("gh auth token")
-	log.Debug("Auth token: %.10s...", ghAuthToken)
-
 	Run(
 		fmt.Sprintf(`chronicle -n --until-tag %s -o md=%s -o md-pretty`, version, changelogFile),
 		run.Stdout(os.Stderr),
-		run.Env("GITHUB_TOKEN", ghAuthToken),
+		run.Env("GITHUB_TOKEN", githubToken()),
 	)
 
 	return changelogFile

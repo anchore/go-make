@@ -44,8 +44,9 @@ func TagReleaseTask() Task {
 			// this ensures we are in CI and will tag HEAD and push using the configured credential
 			ci.PublishTag(tagName)
 
-			// generate changelog for the version (needs the tag to exist locally)
-			changelogFile := GenerateAndShowFromVersion(tagName)
+			// fetch the pre-built changelog from the OCI cache (falls back to generating it
+			// with chronicle if the cache is unavailable)
+			changelogFile, _ := GetChangelog(tagName)
 
 			// use --verify-tag to abort if the tag doesn't already exist on remote
 			Run("gh release create --latest --verify-tag",
