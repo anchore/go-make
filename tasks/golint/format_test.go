@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/anchore/go-make/require"
@@ -62,6 +63,13 @@ func TestFormatterEnabled(t *testing.T) {
 }
 
 func Test_findMalformedFilenames(t *testing.T) {
+	// on Windows ':' is the NTFS alternate-data-stream separator, so
+	// os.WriteFile("bad:name.txt") creates a file named "bad" instead of
+	// failing — the malformed filename these tests rely on cannot exist
+	if runtime.GOOS == "windows" {
+		t.Skip("cannot create filenames containing ':' on Windows")
+	}
+
 	t.Run("gitignored bad-named file is skipped", func(t *testing.T) {
 		requireGit(t)
 		root := setupGitRoot(t)
