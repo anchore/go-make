@@ -109,7 +109,7 @@ func Command(cmd string, opts ...Option) (string, error) {
 	// WaitDelay specifies the time to wait after context cancellation (and the Cancel func
 	// being called) before force-killing the process.
 	c.WaitDelay = 11 * time.Second
-	osExecOpts(c)
+	osExecOpts(c, &cfg)
 
 	// execute
 	err := c.Run()
@@ -227,6 +227,26 @@ func NoFail() Option {
 		cfg, _ := ctx.Value(runConfig{}).(*runConfig)
 		if cfg != nil {
 			cfg.noFail = true
+		}
+		return nil
+	}
+}
+
+// Interactive hands the terminal to the command: stdin is attached and the command stays
+// in go-make's process group rather than getting one of its own. A TUI needs both -- a
+// process in a background process group is stopped by the OS (SIGTTOU/SIGTTIN) the moment
+// it puts the terminal in raw mode, which looks like a hang with no output. The tradeoff is
+// that cancellation signals only the command, not any children it spawned.
+//
+// Example:
+//
+//	Run(`canopy test ./...`, run.Stdout(os.Stderr), run.Interactive())
+func Interactive() Option {
+	return func(ctx context.Context, cmd *exec.Cmd) error {
+		cmd.Stdin = os.Stdin
+		cfg, _ := ctx.Value(runConfig{}).(*runConfig)
+		if cfg != nil {
+			cfg.interactive = true
 		}
 		return nil
 	}
@@ -407,6 +427,7 @@ func printArgs(args []Option) string {
 }
 
 type runConfig struct {
-	quiet  bool
-	noFail bool
+	quiet       bool
+	noFail      bool
+	interactive bool
 }

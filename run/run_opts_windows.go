@@ -5,7 +5,7 @@ import (
 	"os/exec"
 )
 
-func osExecOpts(c *exec.Cmd) {
+func osExecOpts(c *exec.Cmd, _ *runConfig) {
 	// on Windows, os.Process.Signal(os.Interrupt) is not supported for child processes.
 	// Instead, kill the process directly when the context is cancelled. This is less
 	// graceful than the Unix approach but is the only reliable option on Windows.
