@@ -24,6 +24,16 @@ import (
 // coverageTotalRE matches the "total:" line emitted by `go tool cover -func`.
 var coverageTotalRE = regexp.MustCompile(`total:[^\n%]+?(\d+\.\d+)%`)
 
+const (
+	// testRunnerEnv opts into an alternate test runner without any change to a consumer's
+	// Makefile: GOMAKE_TEST_RUNNER=canopy swaps `go test` for `canopy test`. Unset, or any
+	// other value, keeps `go test`.
+	testRunnerEnv = "GOMAKE_TEST_RUNNER"
+
+	goRunner     = "go"
+	canopyRunner = "canopy"
+)
+
 // Tasks creates a test task that runs Go tests with coverage reporting.
 // The task hooks into the "test" label, so it runs whenever "make test" is called.
 // By default, it runs tests for all packages with coverage enabled and race detection
@@ -56,11 +66,16 @@ func Tasks(options ...Option) Task {
 func runTests(cfg *Config) {
 	start := time.Now()
 
+	if config.Env(testRunnerEnv, goRunner) == canopyRunner {
+		runCanopyTests(cfg, start)
+		return
+	}
+
 	coverageFile, cleanup := resolveCoverageFile(cfg)
 	defer cleanup()
 
 	args := buildTestArgs(cfg, coverageFile)
-	Run("go", run.Args(args...), run.Stdout(os.Stderr), run.Env("GODEBUG", "dontfreezetheworld=1"))
+	Run(goRunner, run.Args(args...), run.Stdout(os.Stderr), run.Env("GODEBUG", "dontfreezetheworld=1"))
 	Log("Done running %s tests in %v", cfg.Name, time.Since(start))
 
 	if coverageFile == "" {
@@ -68,6 +83,44 @@ func runTests(cfg *Config) {
 	}
 	processCoverage(cfg, coverageFile)
 	uploadCoverage(coverageFile)
+}
+
+// runCanopyTests runs the suite with `canopy test` instead of `go test`. canopy derives
+// coverage from a cover dir rather than a text profile, so there is no file to hand to
+// `go tool cover -func` or to upload: --covermin enforces the threshold in-process and the
+// coverage report is canopy's to print.
+func runCanopyTests(cfg *Config, start time.Time) {
+	// canopy renders a live TUI to stderr when attached to a terminal, which needs the
+	// terminal handed over (see run.Interactive) or it is stopped before printing anything.
+	Run(canopyRunner, run.Args(buildCanopyArgs(cfg)...), run.Stdout(os.Stderr), run.Interactive(), run.Env("GODEBUG", "dontfreezetheworld=1"))
+	Log("Done running %s tests in %v", cfg.Name, time.Since(start))
+}
+
+// buildCanopyArgs assembles the `canopy test` argument list. canopy wraps `go test` but
+// takes long-form flags of its own, so the same config has to be spelled differently here.
+// Config.Verbose has no counterpart: canopy always reports per-test results.
+func buildCanopyArgs(cfg *Config) []string {
+	args := Deps("test")
+	if cfg.RunFilter != "" {
+		args = append(args, "--run", cfg.RunFilter)
+	}
+	args = append(args, selectPackages(cfg.IncludeGlob, cfg.ExcludeGlob)...)
+
+	tags := cfg.Tags
+	if cfg.Coverage {
+		args = append(args, "--cover", "--covermode", "atomic", "--coverpkg", "./...")
+		tags = append(tags, "coverage")
+		if cfg.CoverageThreshold > 0 {
+			args = append(args, "--covermin", strconv.FormatFloat(cfg.CoverageThreshold, 'f', -1, 64))
+		}
+	}
+	if len(tags) > 0 {
+		args = append(args, "--tags", strings.Join(tags, ","))
+	}
+	if cfg.Race {
+		args = append(args, "--race")
+	}
+	return args
 }
 
 // buildTestArgs assembles the `go test` argument list. coverageFile is the resolved

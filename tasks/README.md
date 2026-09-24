@@ -45,6 +45,22 @@ gotest.Tasks(
 )
 ```
 
+### Alternate Test Runner
+
+`gotest` runs `go test` by default. Set `GOMAKE_TEST_RUNNER=canopy` to run the same suite
+with [canopy](https://github.com/wagoodman/canopy) instead, which is a wrapper around
+`go test` with better output. This is opt-in per developer or per CI job, no Makefile
+change needed:
+
+```bash
+GOMAKE_TEST_RUNNER=canopy make unit
+```
+
+canopy computes coverage itself, so under this runner `CoverageThreshold` is handed to
+canopy's `--covermin` and the cover profile is neither written nor uploaded as a CI artifact.
+Both runners read the same `go test` cover profile, so the totals agree (48.3% either way on
+this repo).
+
 ### Release Configuration
 
 ```go
@@ -64,6 +80,7 @@ These packages require certain tools to be available. Configure them in `.binny.
 | `golint` | golangci-lint, gosimports, bouncer |
 | `goreleaser` | goreleaser, quill (optional), syft (optional) |
 | `release` | chronicle, glow (optional), gh |
+| `gotest` | canopy (optional, only with `GOMAKE_TEST_RUNNER=canopy`) |
 
 Example `.binny.yaml`:
 

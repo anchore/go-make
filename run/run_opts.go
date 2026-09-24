@@ -7,7 +7,21 @@ import (
 	"syscall"
 )
 
-func osExecOpts(c *exec.Cmd) {
+func osExecOpts(c *exec.Cmd, cfg *runConfig) {
+	if cfg.interactive {
+		// an interactive command must stay in our process group, which is the terminal's
+		// foreground group: a background process group is stopped by the OS when it reads
+		// from the terminal or puts it in raw mode. Only the command itself can be
+		// signalled as a result.
+		c.Cancel = func() error {
+			if c.Process == nil {
+				return nil
+			}
+			return c.Process.Signal(syscall.SIGINT)
+		}
+		return
+	}
+
 	// set pgid so any kill operations apply to spawned children
 	c.SysProcAttr = &syscall.SysProcAttr{
 		Pgid:    0,
