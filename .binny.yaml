@@ -26,7 +26,7 @@ tools:
   # used to produce SBOMs during release
   - name: syft
     version:
-      want: v1.51.1
+      want: v1.52.0
     method: github-release
     with:
       repo: anchore/syft
@@ -58,7 +58,7 @@ tools:
   # used to release all artifacts
   - name: goreleaser
     version:
-      want: v2.16.0
+      want: v2.18.2
     method: github-release
     with:
       repo: goreleaser/goreleaser
@@ -98,7 +98,7 @@ tools:
   # used to run tests when GOMAKE_TEST_RUNNER=canopy
   - name: canopy
     version:
-      want: v0.4.1
+      want: v0.2.0
     method: github-release
     with:
       repo: wagoodman/canopy
