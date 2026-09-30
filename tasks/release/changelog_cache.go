@@ -18,6 +18,7 @@ import (
 	"github.com/anchore/go-make/color"
 	"github.com/anchore/go-make/file"
 	"github.com/anchore/go-make/gomod"
+	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/log"
 	"github.com/anchore/go-make/run"
 )
@@ -117,6 +118,7 @@ func noteCacheMiss() {
 // md-pretty), this surfaces the markdown exactly as it was published to the cache.
 func writeAndShow(c cachedChangelog) {
 	file.Write(changelogFile, c.markdown)
+	lang.Throw(os.Chmod(changelogFile, 0o644))
 	if c.version != "" {
 		file.Write(versionFile, c.version)
 	}
