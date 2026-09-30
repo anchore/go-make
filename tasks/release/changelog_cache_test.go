@@ -7,11 +7,26 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/anchore/go-make/require"
 )
+
+func TestWriteAndShowChangelogPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix file permissions")
+	}
+	t.Chdir(t.TempDir())
+
+	writeAndShow(cachedChangelog{markdown: "# Changes\n"})
+
+	info, err := os.Stat(changelogFile)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o644), info.Mode().Perm())
+}
 
 func TestFindMarkdownLayer(t *testing.T) {
 	tests := []struct {
