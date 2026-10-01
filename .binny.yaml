@@ -43,6 +43,8 @@ tools:
   - name: cosign
     version:
       want: v3.1.3
+      # major bumps change signing behavior; upgrade to v4 deliberately, not via `binny update`
+      constraint: < 4.0.0
     method: github-release
     with:
       repo: sigstore/cosign
