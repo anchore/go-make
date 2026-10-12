@@ -53,6 +53,9 @@ tools:
   - name: golangci-lint
     version:
       want: v2.14.0
+      # pinned: must be bumped together with the go version in .github/actions/setup since
+      # newer go releases can break older linters and newer linters can flag new findings
+      constraint: = 2.14.0
     method: github-release
     with:
       repo: golangci/golangci-lint
