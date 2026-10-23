@@ -11,7 +11,7 @@ inputs:
   go-version:
     description: "Go version to install"
     # pinned: must be bumped together with golangci-lint in .binny.yaml
-    default: 1.27.2
+    default: 1.27.3
   go-version-file:
     description: "Go version file to use"
     default: go.mod
