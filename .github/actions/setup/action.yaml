@@ -24,8 +24,8 @@ inputs:
     description: "Prefix all cache keys with this value"
     default: "v1"
   mod-cache-key-prefix:
-    description: "Prefix the go mod cache key with this value instead of cache-key-prefix. A job with its own build cache (a snapshot build, race builds) can still share one mod cache with the others by setting this to their prefix, since every job downloads the same modules."
-    default: ""
+    description: "Prefix the go mod cache key with this value. It is separate from cache-key-prefix so every job on an OS/arch shares one mod cache whatever its build cache prefix (a snapshot build, race builds): modules are the same for all of them. Bumping cache-key-prefix does not reset the mod cache; bump this instead."
+    default: "v1"
   cache-enabled:
     description: "Enable build/mod and tool caching. When disabled, no restore or save."
     default: "true"
@@ -65,9 +65,9 @@ runs:
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ env.GO_MOD_CACHE }}
-        key: ${{ inputs.mod-cache-key-prefix || inputs.cache-key-prefix }}-${{ runner.arch }}-${{ runner.os }}-go-mod-${{ hashFiles(inputs.cache-dependency-path) }}
+        key: ${{ inputs.mod-cache-key-prefix }}-${{ runner.arch }}-${{ runner.os }}-go-mod-${{ hashFiles(inputs.cache-dependency-path) }}
         restore-keys: |
-          ${{ inputs.mod-cache-key-prefix || inputs.cache-key-prefix }}-${{ runner.arch }}-${{ runner.os }}-go-mod-
+          ${{ inputs.mod-cache-key-prefix }}-${{ runner.arch }}-${{ runner.os }}-go-mod-
 
     # go mod cache: restore + save when saving. No restore-keys here on purpose: go never trims
     # the module cache, so seeding a new key from the previous one carries every stale module
@@ -79,12 +79,14 @@ runs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ env.GO_MOD_CACHE }}
-        key: ${{ inputs.mod-cache-key-prefix || inputs.cache-key-prefix }}-${{ runner.arch }}-${{ runner.os }}-go-mod-${{ hashFiles(inputs.cache-dependency-path) }}
+        key: ${{ inputs.mod-cache-key-prefix }}-${{ runner.arch }}-${{ runner.os }}-go-mod-${{ hashFiles(inputs.cache-dependency-path) }}
 
-    # every job sharing a mod cache key restores the one whichever job saved it first, so a job
-    # that needs only some modules would leave the others downloading the rest on every run.
-    # Downloading everything before the job runs makes the saved cache whole whichever job wins.
-    # This only happens on a miss on the default branch, so once per go.sum change.
+    # every job on an OS/arch shares one mod cache key and any of them may save it: the first to
+    # finish after a go.sum change, or whichever job runs next after the entry is evicted. Keys are
+    # immutable, so a job that needed only a few modules would otherwise pin a thin cache that
+    # every other job restores, downloads around, and can't replace until go.sum changes again.
+    # Downloading everything first makes the saved cache whole whichever job saves it. This only
+    # runs on a miss on the default branch, so roughly once per go.sum change and never on PRs.
     - name: Download all go modules
       if: ${{ steps.go-mod-cache-rw.outcome == 'success' && steps.go-mod-cache-rw.outputs.cache-hit != 'true' }}
       shell: bash
