@@ -23,6 +23,9 @@ inputs:
   cache-key-prefix:
     description: "Prefix all cache keys with this value"
     default: "v1"
+  mod-cache-key-prefix:
+    description: "Prefix the go mod cache key with this value. It is separate from cache-key-prefix so every job on an OS/arch shares one mod cache whatever its build cache prefix (a snapshot build, race builds): modules are the same for all of them. Bumping cache-key-prefix does not reset the mod cache; bump this instead."
+    default: "v1"
   cache-enabled:
     description: "Enable build/mod and tool caching. When disabled, no restore or save."
     default: "true"
@@ -62,20 +65,34 @@ runs:
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ env.GO_MOD_CACHE }}
-        key: ${{ inputs.cache-key-prefix }}-${{ runner.arch }}-${{ runner.os }}-go-mod-${{ hashFiles(inputs.cache-dependency-path) }}
+        key: ${{ inputs.mod-cache-key-prefix }}-${{ runner.arch }}-${{ runner.os }}-go-mod-${{ hashFiles(inputs.cache-dependency-path) }}
         restore-keys: |
-          ${{ inputs.cache-key-prefix }}-${{ runner.arch }}-${{ runner.os }}-go-mod-
+          ${{ inputs.mod-cache-key-prefix }}-${{ runner.arch }}-${{ runner.os }}-go-mod-
 
     # go mod cache: restore + save when saving. No restore-keys here on purpose: go never trims
     # the module cache, so seeding a new key from the previous one carries every stale module
     # version forward and the saved cache only ever grows. Starting cold once per go.sum change
-    # keeps it to what the saving job actually downloaded.
+    # keeps it to the modules the current go.sum needs.
     - name: Restore and save go mod cache
+      id: go-mod-cache-rw
       if: ${{ inputs.cache-enabled == 'true' && inputs.cache-save == 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.event.repository.fork == false }}
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ env.GO_MOD_CACHE }}
-        key: ${{ inputs.cache-key-prefix }}-${{ runner.arch }}-${{ runner.os }}-go-mod-${{ hashFiles(inputs.cache-dependency-path) }}
+        key: ${{ inputs.mod-cache-key-prefix }}-${{ runner.arch }}-${{ runner.os }}-go-mod-${{ hashFiles(inputs.cache-dependency-path) }}
+
+    # every job on an OS/arch shares one mod cache key and any of them may save it: the first to
+    # finish after a go.sum change, or whichever job runs next after the entry is evicted. Keys are
+    # immutable, so a job that needed only a few modules would otherwise pin a thin cache that
+    # every other job restores, downloads around, and can't replace until go.sum changes again.
+    # Downloading everything first makes the saved cache whole whichever job saves it. This only
+    # runs on a miss on the default branch, so roughly once per go.sum change and never on PRs.
+    - name: Download all go modules
+      if: ${{ steps.go-mod-cache-rw.outcome == 'success' && steps.go-mod-cache-rw.outputs.cache-hit != 'true' }}
+      shell: bash
+      run: |
+        if [ -f go.mod ]; then go mod download; fi
+        if [ -f .make/go.mod ]; then (cd .make && go mod download); fi
 
     # go build cache: restore-only when not saving (see header). Keyed on the go version since a
     # build cache from another toolchain is useless.
