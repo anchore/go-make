@@ -3,7 +3,7 @@ description: "Bootstrap all tools and dependencies"
 inputs:
   go-version:
     description: "Go version to install"
-    default: 1.27.2
+    default: 1.27.3
 runs:
   using: "composite"
   steps:
