@@ -42,9 +42,9 @@ tools:
   # used for signing the checksums file at release
   - name: cosign
     version:
-      want: cosigned-v0.0.3-dev
+      want: v3.1.4
       # major bumps change signing behavior; upgrade to v4 deliberately, not via `binny update`
-      constraint: < 4.0.0
+      constraint: ">= 3.0.0, < 4.0.0"
     method: github-release
     with:
       repo: sigstore/cosign
