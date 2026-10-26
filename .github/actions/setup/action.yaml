@@ -41,6 +41,59 @@ runs:
       with:
         persist-credentials: false
 
+    # the ubuntu and macOS runner images still trust the leaked eMudhra intermediates
+    # (actions/runner-images#15018). Go 1.27.3 already distrusts them in crypto/x509, but curl, git,
+    # pip etc use the system store. Probe first so the log shows whether this image is affected, and
+    # only on linux pull the fixed ca-certificates and fail if the chains are still trusted. macOS
+    # has no package fix so it is report-only. Drop this step once the images ship the fix.
+    - name: Updating CA certificates
+      if: ${{ runner.os != 'Windows' }}
+      shell: bash
+      run: |
+        # prints the test hosts whose leaked chain this runner trusts. curl exits 0 when it trusts the
+        # chain and 60 when it rejects it; anything else (dns, timeout, site down) is inconclusive
+        # and is never treated as trusted.
+        trusted() {
+          for h in dv-g3b-emudhra dv-g3b-aaa-emudhra; do
+            rc=0
+            curl -sS -o /dev/null --max-time 10 "https://$h.we-have-a-problem.com/" 2>/dev/null || rc=$?
+            case $rc in
+              0) echo "$h" ;;
+              60) ;;
+              *) echo "[$1] $h: inconclusive (curl exit $rc)" >&2 ;;
+            esac
+          done
+        }
+
+        before=$(trusted ca-precheck)
+        if [ -z "$before" ]; then
+          echo "[ca-precheck] runner rejects the leaked eMudhra chains, nothing to do"
+          exit 0
+        fi
+        echo "[ca-precheck] runner TRUSTS leaked eMudhra chain(s): $(echo $before)"
+
+        if [ "$RUNNER_OS" != "Linux" ]; then
+          echo "[ca-precheck] no package fix on $RUNNER_OS, continuing (report only)"
+          exit 0
+        fi
+        if ! command -v apt-get >/dev/null || ! sudo -n true 2>/dev/null; then
+          echo "::warning title=eMudhra CA::runner trusts leaked eMudhra chain(s) and has no apt/sudo to fix it: $(echo $before)"
+          exit 0
+        fi
+
+        echo "[ca-fix] upgrading ca-certificates"
+        # a broken third party apt source shouldn't stop the upgrade; the verify below is the gate
+        sudo apt-get update -qq || true
+        sudo apt-get install -y -qq --only-upgrade ca-certificates
+        dpkg-query -W ca-certificates
+
+        after=$(trusted ca-verify)
+        if [ -n "$after" ]; then
+          echo "::error title=eMudhra CA::runner still trusts leaked eMudhra chain(s) after upgrading ca-certificates: $(echo $after)"
+          exit 1
+        fi
+        echo "[ca-verify] runner now rejects the leaked eMudhra chains"
+
     - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       if: ${{ inputs.go-version != '' || inputs.go-version-file != '' }}
       with:
