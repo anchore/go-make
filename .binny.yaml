@@ -42,7 +42,7 @@ tools:
   # used for signing the checksums file at release
   - name: cosign
     version:
-      want: v3.1.3
+      want: v3.1.4
       # major bumps change signing behavior; upgrade to v4 deliberately, not via `binny update`
       constraint: ">= 3.0.0, < 4.0.0"
     method: github-release
@@ -95,7 +95,7 @@ tools:
   # used for creating GitHub releases in CI
   - name: gh
     version:
-      want: v2.102.0
+      want: v2.102.1
     method: github-release
     with:
       repo: cli/cli
