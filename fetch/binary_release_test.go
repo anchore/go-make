@@ -37,6 +37,13 @@ func Test_BinaryRelease(t *testing.T) {
 	tmpDir := t.TempDir()
 	fullPath := filepath.Join(tmpDir, fileName)
 
+	// a read-only link target stands in for a binny cache entry, which must be replaced, not written through
+	linkTarget := filepath.Join(t.TempDir(), "cached")
+	if !config.Windows {
+		require.NoError(t, os.WriteFile(linkTarget, []byte("cached"), 0o555)) //nolint:gosec
+		require.NoError(t, os.Symlink(linkTarget, fullPath))
+	}
+
 	// Add your BinaryRelease function test here using server.URL and tmpDir
 	require.NoError(t, BinaryRelease(fullPath, ReleaseSpec{
 		URL: serverURL + "/releases/thething-{{.version}}-{{.arch}}_{{.os}}.{{.ext}}",
@@ -54,6 +61,15 @@ func Test_BinaryRelease(t *testing.T) {
 	extractedContent, err := os.ReadFile(fullPath)
 	require.NoError(t, err)
 	require.Equal(t, content, string(extractedContent))
+
+	if !config.Windows {
+		fi, err := os.Lstat(fullPath)
+		require.NoError(t, err)
+		require.True(t, fi.Mode().IsRegular())
+		cached, err := os.ReadFile(linkTarget)
+		require.NoError(t, err)
+		require.Equal(t, "cached", string(cached))
+	}
 }
 
 func Test_ReleaseSpec_render(t *testing.T) {
