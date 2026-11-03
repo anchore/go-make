@@ -95,7 +95,7 @@ tools:
   # used for creating GitHub releases in CI
   - name: gh
     version:
-      want: v2.103.2
+      want: v2.103.3
     method: github-release
     with:
       repo: cli/cli
