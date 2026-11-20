@@ -64,6 +64,11 @@ func BinaryRelease(toolPath string, spec ReleaseSpec) error {
 	if !file.Exists(dir) {
 		lang.Throw(os.MkdirAll(dir, 0o700|os.ModeDir))
 	}
+	// replace whatever is at toolPath rather than writing through it: a read-only binary fails with EACCES, and a
+	// symlink (binny links tools into its shared cache) would have its target overwritten
+	if err := os.Remove(toolPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
 	return os.WriteFile(toolPath, contents, 0o500) //nolint:gosec // needs read + execute permissions
 }
 
